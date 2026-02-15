@@ -6,11 +6,12 @@ import type { CardNodeData } from "@/lib/types";
 import { usePipelineStore } from "@/store/pipelineStore";
 import { runPipeline } from "@/lib/pipelineRunner";
 
-const CATEGORY_STYLES: Record<string, string> = {
-  data: "border-card-data/60 bg-card-data/5",
-  model: "border-card-model/60 bg-card-model/5",
-  evaluation: "border-card-evaluation/60 bg-card-evaluation/5",
-  inference: "border-card-inference/60 bg-card-inference/5",
+const CATEGORY_COLORS: Record<string, { border: string; bg: string }> = {
+  data: { border: "border-card-data/50", bg: "bg-card-data/5" },
+  model: { border: "border-card-model/50", bg: "bg-card-model/5" },
+  evaluation: { border: "border-card-evaluation/50", bg: "bg-card-evaluation/5" },
+  inference: { border: "border-card-inference/50", bg: "bg-card-inference/5" },
+  training: { border: "border-card-model/50", bg: "bg-card-model/5" },
 };
 
 const STATUS_DOT: Record<string, string> = {
@@ -59,196 +60,138 @@ export const CardNode = memo(function CardNode({
 }: NodeProps<Node<CardNodeData>>) {
   const { cardSchema, status, outputPreview } = data;
   const isExecuting = usePipelineStore((s) => s.isExecuting);
-  const logEntries = usePipelineStore((s) => s.logEntries);
-  const setConsoleOpen = usePipelineStore((s) => s.setConsoleOpen);
-  const setConsoleActiveTab = usePipelineStore((s) => s.setConsoleActiveTab);
-  const setSelectedNodeIdForOutput = usePipelineStore((s) => s.setSelectedNodeIdForOutput);
   const removeNode = usePipelineStore((s) => s.removeNode);
 
   const inputKeys = Object.keys(cardSchema.input_schema);
   const outputKeys = Object.keys(cardSchema.output_schema);
+  const maxHandles = Math.max(inputKeys.length, outputKeys.length, 1);
 
-  const showOutput = status === "completed" || status === "failed";
   const isRunning = status === "running";
-  const hasLogs = isExecuting || logEntries.length > 0;
+  const colors = CATEGORY_COLORS[cardSchema.category] || CATEGORY_COLORS.data;
 
   return (
-    <>
-      <div
-        className={`group relative rounded-lg border shadow-sm transition-all bg-white w-72
-          ${CATEGORY_STYLES[cardSchema.category] || "border-border"}
-          ${selected ? "ring-2 ring-accent shadow-lg border-accent" : "hover:shadow-md"}`}
-        style={{ minHeight: `${Math.max(90, 50 + (inputKeys.length + outputKeys.length) * 8)}px` }}
+    <div
+      className={`group relative rounded-lg border shadow-sm transition-all bg-bg-secondary w-56
+        ${colors.border} ${colors.bg}
+        ${selected ? "ring-2 ring-accent shadow-lg !border-accent" : "hover:shadow-md"}`}
+    >
+      {/* Delete button */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          if (confirm("Remove this card?")) {
+            removeNode(id);
+          }
+        }}
+        className="absolute -top-2 -right-2 z-20
+          w-5 h-5 flex items-center justify-center
+          bg-bg-secondary border border-border rounded-full
+          text-text-secondary/50 hover:text-status-failed
+          hover:bg-status-failed/10 hover:border-status-failed/40
+          transition-all shadow-sm
+          opacity-0 group-hover:opacity-100"
+        title="Remove card"
       >
-        {/* Input handles with labels - label ABOVE handle (outside card), handle ON border */}
-        {inputKeys.map((key, i) => {
-          const spacing = 100 / (inputKeys.length + 1);
-          const topPercent = spacing * (i + 1);
-          return (
-            <div 
-              key={`in-${key}`} 
-              className="absolute left-0 z-10 flex flex-col items-center" 
-              style={{ top: `${topPercent}%`, transform: "translateY(-50%)" }}
-            >
-              <div 
-                className="text-[9px] text-text-secondary/90 font-medium pointer-events-none whitespace-nowrap absolute" 
-                style={{ bottom: "100%", marginBottom: "0.25rem", left: "-2rem" }} 
-                title={key}
-              >
-                {key}
-              </div>
-              <Handle
-                type="target"
-                position={Position.Left}
-                id={key}
-                className="!w-2.5 !h-2.5 !bg-accent !border-2 !border-background hover:!bg-accent/80 transition-colors"
-              />
-            </div>
-          );
-        })}
+        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
 
-        {/* Delete button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            if (confirm("Remove this card?")) {
-              removeNode(id);
-            }
-          }}
-          className="absolute -top-2 -right-2 z-20
-            w-5 h-5 flex items-center justify-center
-            bg-background border border-border rounded-full
-            text-text-secondary/60 hover:text-status-failed 
-            hover:bg-status-failed/10 hover:border-status-failed/30
-            transition-all shadow-sm
-            opacity-0 group-hover:opacity-100"
-          title="Remove card"
-        >
-          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-
-        {/* Card content */}
-        <div className="px-4 py-1.5 h-full flex flex-col">
-          {/* Title section - centered */}
-          <div className="text-center mb-1">
-            <div className="flex items-center justify-center gap-2 mb-0">
-              <h3 className="text-xs font-semibold text-text-primary break-words">
-                {cardSchema.display_name}
-              </h3>
-              <div className="flex items-center gap-1.5 shrink-0">
-                {isRunning && (
-                  <span className="w-2 h-2 rounded-full bg-status-running animate-pulse" />
-                )}
-                {!isExecuting && !isRunning && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      runPipeline(id);
-                    }}
-                    className="text-text-secondary/60 hover:text-accent transition-colors p-0.5"
-                    title="Run from this node"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z" />
-                    </svg>
-                  </button>
-                )}
-                {!isRunning && (
-                  <span
-                    className={`w-2 h-2 rounded-full ${STATUS_DOT[status]}`}
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Description section - centered, no box */}
-          {cardSchema.description && (
-            <div className="text-center mb-1.5">
-              <p className="text-[10px] text-text-secondary/80 leading-relaxed break-words">
-                {cardSchema.description}
-              </p>
-            </div>
-          )}
-
-          {/* Status info */}
-          {status === "completed" && outputPreview && (
-            <div className="text-center mb-2 text-[10px] text-text-secondary/80 truncate">
-              {compactPreview(cardSchema.output_view_type, outputPreview.preview)}
-            </div>
-          )}
-
-          {status === "failed" && data.error && (
-            <div className="text-center mb-2 text-[10px] text-status-failed truncate">
-              Error: {data.error.substring(0, 50)}
-            </div>
-          )}
-
-          {/* Output and Console section - bottom, centered */}
-          <div className="mt-auto pt-1 flex items-center justify-center gap-3">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedNodeIdForOutput(id);
-                setConsoleActiveTab("output");
-                setConsoleOpen(true);
-              }}
-              className="inline-flex items-center gap-0.5 text-[9px] text-text-secondary/70 hover:text-text-primary transition-colors px-1.5 py-0.5"
-            >
-              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-              Output
-            </button>
-            {(hasLogs || isExecuting) && (
+      {/* Card body */}
+      <div className="px-3 py-2.5 flex flex-col gap-1">
+        {/* Header row: title + status */}
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-semibold text-foreground leading-tight truncate">
+            {cardSchema.display_name}
+          </h3>
+          <div className="flex items-center gap-2.5 shrink-0 ml-2">
+            {isRunning && (
+              <span className="w-2 h-2 rounded-full bg-status-running animate-pulse" />
+            )}
+            {!isExecuting && !isRunning && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setConsoleOpen(true);
+                  runPipeline(id);
                 }}
-                className="inline-flex items-center gap-0.5 text-[9px] text-text-secondary/70 hover:text-text-primary transition-colors px-1.5 py-0.5"
-                title="Open console"
+                className="text-text-secondary/40 hover:text-accent transition-colors p-0.5"
+                title="Run from this node"
               >
-                <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
                 </svg>
-                Console
               </button>
+            )}
+            {!isRunning && (
+              <span className={`w-2 h-2 rounded-full ${STATUS_DOT[status]}`} />
             )}
           </div>
         </div>
 
-        {/* Output handles with labels - label ABOVE handle (outside card), handle ON border */}
-        {outputKeys.map((key, i) => {
-          const spacing = 100 / (outputKeys.length + 1);
-          const topPercent = spacing * (i + 1);
-          return (
-            <div 
-              key={`out-${key}`} 
-              className="absolute right-0 z-10 flex flex-col items-center" 
-              style={{ top: `${topPercent}%`, transform: "translateY(-50%)" }}
-            >
-              <div 
-                className="text-[9px] text-text-secondary/90 font-medium pointer-events-none whitespace-nowrap absolute" 
-                style={{ bottom: "100%", marginBottom: "0.25rem", right: "-2rem" }} 
-                title={key}
+        {/* I/O ports section */}
+        <div className="relative" style={{ minHeight: `${maxHandles * 22 + 8}px` }}>
+          {/* Input handles */}
+          {inputKeys.map((key, i) => {
+            const top = i * 22 + 11;
+            return (
+              <div
+                key={`in-${key}`}
+                className="absolute left-0 flex items-center"
+                style={{ top: `${top}px`, transform: "translateY(-50%)" }}
               >
-                {key}
+                <Handle
+                  type="target"
+                  position={Position.Left}
+                  id={key}
+                  className="!w-2.5 !h-2.5 !bg-accent !border-2 !border-bg-secondary !shadow-sm hover:!bg-accent/80 transition-colors !rounded-full"
+                  style={{ left: "-13px" }}
+                />
+                <span className="text-[9px] text-text-secondary/70 font-medium ml-0.5">
+                  {key}
+                </span>
               </div>
-              <Handle
-                type="source"
-                position={Position.Right}
-                id={key}
-                className="!w-2.5 !h-2.5 !bg-accent !border-2 !border-background hover:!bg-accent/80 transition-colors"
-              />
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
 
-    </>
+          {/* Output handles */}
+          {outputKeys.map((key, i) => {
+            const top = i * 22 + 11;
+            return (
+              <div
+                key={`out-${key}`}
+                className="absolute right-0 flex items-center"
+                style={{ top: `${top}px`, transform: "translateY(-50%)" }}
+              >
+                <span className="text-[9px] text-text-secondary/70 font-medium mr-0.5">
+                  {key}
+                </span>
+                <Handle
+                  type="source"
+                  position={Position.Right}
+                  id={key}
+                  className="!w-2.5 !h-2.5 !bg-accent !border-2 !border-bg-secondary !shadow-sm hover:!bg-accent/80 transition-colors !rounded-full"
+                  style={{ right: "-13px" }}
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Compact output preview */}
+        {status === "completed" && outputPreview && (
+          <div className="text-[10px] text-status-completed/90 font-medium truncate text-center">
+            {compactPreview(cardSchema.output_view_type, outputPreview.preview)}
+          </div>
+        )}
+
+        {/* Error preview */}
+        {status === "failed" && data.error && (
+          <div className="text-[10px] text-status-failed truncate text-center">
+            {data.error.substring(0, 60)}
+          </div>
+        )}
+
+      </div>
+    </div>
   );
 });

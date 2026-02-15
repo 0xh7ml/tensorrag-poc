@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 import { usePipelineStore } from "@/store/pipelineStore";
 import { OutputTab } from "./OutputTab";
+import { SchemaForm } from "@/components/config/SchemaForm";
 
 const MIN_HEIGHT = 100;
 const MAX_HEIGHT = 600;
@@ -18,6 +19,10 @@ export function ConsolePanel() {
   const setConsoleActiveTab = usePipelineStore((s) => s.setConsoleActiveTab);
   const logEntries = usePipelineStore((s) => s.logEntries);
   const isExecuting = usePipelineStore((s) => s.isExecuting);
+  const selectedNodeId = usePipelineStore((s) => s.selectedNodeId);
+  const nodes = usePipelineStore((s) => s.nodes);
+  const updateNodeConfig = usePipelineStore((s) => s.updateNodeConfig);
+  const selectedNode = nodes.find((n) => n.id === selectedNodeId);
   const logBottomRef = useRef<HTMLDivElement>(null);
   const [isResizing, setIsResizing] = useState(false);
   const resizeRef = useRef<HTMLDivElement>(null);
@@ -98,21 +103,18 @@ export function ConsolePanel() {
                   : "text-gray-600 border-transparent hover:text-gray-900"
             }`}
           >
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
+            <span className="flex items-center gap-2">
               Console
               {isExecuting && consoleActiveTab === "console" && (
                 <span className={`text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}>(Running...)</span>
               )}
-            </div>
+            </span>
           </button>
           <button
             onClick={() => setConsoleActiveTab("output")}
             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
               consoleActiveTab === "output"
-                ? isDark 
+                ? isDark
                   ? "text-white border-accent"
                   : "text-gray-900 border-blue-500"
                 : isDark
@@ -120,13 +122,28 @@ export function ConsolePanel() {
                   : "text-gray-600 border-transparent hover:text-gray-900"
             }`}
           >
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-              Output
-            </div>
+            Output
+          </button>
+          <button
+            onClick={() => setConsoleActiveTab("config")}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+              consoleActiveTab === "config"
+                ? isDark
+                  ? "text-white border-accent"
+                  : "text-gray-900 border-blue-500"
+                : isDark
+                  ? "text-gray-400 border-transparent hover:text-gray-200"
+                  : "text-gray-600 border-transparent hover:text-gray-900"
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              Config
+              {selectedNode && (
+                <span className={`text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                  ({selectedNode.data.cardSchema.display_name})
+                </span>
+              )}
+            </span>
           </button>
         </div>
         <div className="flex items-center gap-2 pr-2">
@@ -186,8 +203,8 @@ export function ConsolePanel() {
       </div>
 
       {/* Content */}
-      {consoleActiveTab === "console" ? (
-        <div className={`flex-1 overflow-y-auto px-4 py-2 font-mono text-xs leading-relaxed ${
+      {consoleActiveTab === "console" && (
+        <div className={`flex-1 overflow-y-auto px-4 py-2 pb-8 font-mono text-xs leading-relaxed ${
           isDark ? "text-gray-300" : "text-gray-700"
         }`}>
           {logEntries.length === 0 && !isExecuting && (
@@ -203,7 +220,7 @@ export function ConsolePanel() {
                   ? "text-red-500"
                   : entry.text.startsWith("$")
                     ? "text-green-600"
-                    : isDark 
+                    : isDark
                       ? "text-gray-300"
                       : "text-gray-700"
               }
@@ -219,9 +236,44 @@ export function ConsolePanel() {
           )}
           <div ref={logBottomRef} />
         </div>
-      ) : (
-        <div className={`flex-1 overflow-hidden ${isDark ? "bg-[#0d1117]" : "bg-gray-50"}`}>
+      )}
+      {consoleActiveTab === "output" && (
+        <div className={`flex-1 overflow-y-auto ${isDark ? "bg-[#0d1117]" : "bg-gray-50"}`}>
           <OutputTab />
+        </div>
+      )}
+      {consoleActiveTab === "config" && (
+        <div className={`flex-1 overflow-y-auto ${isDark ? "bg-[#0d1117]" : "bg-gray-50"}`}>
+          {selectedNode ? (
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-1">
+                <h2 className={`text-sm font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>
+                  {selectedNode.data.cardSchema.display_name}
+                </h2>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded ${isDark ? "bg-gray-700 text-gray-300" : "bg-border text-text-secondary"}`}>
+                  {selectedNode.data.cardSchema.category}
+                </span>
+              </div>
+              <p className={`text-xs mb-4 ${isDark ? "text-gray-400" : "text-text-secondary"}`}>
+                {selectedNode.data.cardSchema.description}
+              </p>
+
+              <h3 className={`text-xs font-semibold uppercase mb-2 ${isDark ? "text-gray-400" : "text-text-secondary"}`}>
+                Configuration
+              </h3>
+              <SchemaForm
+                schema={selectedNode.data.cardSchema.config_schema}
+                values={selectedNode.data.config}
+                onChange={(config) => updateNodeConfig(selectedNode.id, config)}
+              />
+
+
+            </div>
+          ) : (
+            <div className={`text-center py-8 ${isDark ? "text-gray-500" : "text-gray-500"}`}>
+              No card selected. Click a card on the canvas to configure it.
+            </div>
+          )}
         </div>
       )}
     </div>

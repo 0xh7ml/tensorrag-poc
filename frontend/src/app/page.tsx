@@ -7,7 +7,6 @@ import { fetchCards } from "@/lib/api";
 import { Header } from "@/components/header/Header";
 import { CardPalette } from "@/components/sidebar/CardPalette";
 import { PipelineCanvas } from "@/components/canvas/PipelineCanvas";
-import { ConfigPanel } from "@/components/config/ConfigPanel";
 import { ConsolePanel } from "@/components/console/ConsolePanel";
 
 function PipelineApp() {
@@ -47,7 +46,6 @@ function PipelineApp() {
           <PipelineCanvas />
           <ConsolePanel />
         </div>
-        <ConfigPanel />
       </div>
     </div>
   );

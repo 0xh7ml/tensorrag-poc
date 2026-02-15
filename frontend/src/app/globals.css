@@ -43,6 +43,11 @@ body {
   --xy-node-border-radius: 8px;
 }
 
+.dark .react-flow {
+  --xy-edge-stroke: #ffffff;
+  --xy-edge-stroke-width: 2;
+}
+
 .react-flow__controls button {
   background: var(--bg-secondary);
   color: var(--foreground);

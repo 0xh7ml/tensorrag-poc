@@ -50,24 +50,22 @@ export function OutputTab() {
   const { cardSchema, status, error, outputPreview } = selectedNode.data;
 
   return (
-    <div className={`flex-1 overflow-y-auto p-4 ${isDark ? "text-gray-200" : "text-gray-700"}`}>
+    <div className={`flex-1 overflow-y-auto p-4 pb-8 ${isDark ? "text-gray-200" : "text-gray-700"}`}>
       {/* Header info */}
-      <div className={`mb-4 pb-3 border-b ${isDark ? "border-gray-700" : "border-gray-300"}`}>
-        <div className="flex items-center gap-2 mb-1">
-          <h3 className={`text-sm font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>{cardSchema.display_name}</h3>
-          <span
-            className={`text-[10px] px-1.5 py-0.5 rounded font-medium
-              ${status === "running" ? isDark ? "bg-yellow-500/20 text-yellow-400" : "bg-yellow-100 text-yellow-700" : ""}
-              ${status === "completed" ? isDark ? "bg-green-500/20 text-green-400" : "bg-green-100 text-green-700" : ""}
-              ${status === "failed" ? isDark ? "bg-red-500/20 text-red-400" : "bg-red-100 text-red-700" : ""}
-              ${status === "pending" ? isDark ? "bg-gray-500/20 text-gray-400" : "bg-gray-100 text-gray-700" : ""}
-            `}
-          >
-            {status}
-          </span>
-        </div>
+      <div className="flex items-center gap-2 mb-4">
+        <h3 className={`text-sm font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>{cardSchema.display_name}</h3>
+        <span
+          className={`text-[10px] px-1.5 py-0.5 rounded font-medium
+            ${status === "running" ? isDark ? "bg-yellow-500/20 text-yellow-400" : "bg-yellow-100 text-yellow-700" : ""}
+            ${status === "completed" ? isDark ? "bg-green-500/20 text-green-400" : "bg-green-100 text-green-700" : ""}
+            ${status === "failed" ? isDark ? "bg-red-500/20 text-red-400" : "bg-red-100 text-red-700" : ""}
+            ${status === "pending" ? isDark ? "bg-gray-500/20 text-gray-400" : "bg-gray-100 text-gray-700" : ""}
+          `}
+        >
+          {status}
+        </span>
         {cardSchema.description && (
-          <p className={`text-xs mt-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>{cardSchema.description}</p>
+          <span className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}>&mdash; {cardSchema.description}</span>
         )}
       </div>
 

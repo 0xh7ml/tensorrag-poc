@@ -62,7 +62,7 @@ interface PipelineState {
   logEntries: LogEntry[];
   consoleOpen: boolean;
   consoleHeight: number;
-  consoleActiveTab: "console" | "output";
+  consoleActiveTab: "console" | "output" | "config";
   selectedNodeIdForOutput: string | null;
   setPipelineId: (id: string) => void;
   setIsExecuting: (executing: boolean) => void;
@@ -76,7 +76,7 @@ interface PipelineState {
   clearLogs: () => void;
   setConsoleOpen: (open: boolean) => void;
   setConsoleHeight: (height: number) => void;
-  setConsoleActiveTab: (tab: "console" | "output") => void;
+  setConsoleActiveTab: (tab: "console" | "output" | "config") => void;
   setSelectedNodeIdForOutput: (nodeId: string | null) => void;
 
   getUpstreamNodeIds: (targetNodeId: string) => string[];
