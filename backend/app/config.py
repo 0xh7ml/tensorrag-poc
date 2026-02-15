@@ -1,14 +1,12 @@
-import uuid
-
 from pydantic_settings import BaseSettings
-
-DEFAULT_USER_ID: str = str(uuid.uuid4())
 
 
 class Settings(BaseSettings):
     FRONTEND_ORIGIN: str = "http://localhost:3000"
     STORAGE_DIR: str = "./storage"
     MODAL_ENABLED: bool = True
+
+    DEFAULT_USER_ID: str = "default"
 
     S3_ENABLED: bool = False
     S3_ENDPOINT: str = ""

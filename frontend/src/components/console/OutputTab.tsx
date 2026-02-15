@@ -40,7 +40,7 @@ export function OutputTab() {
           </svg>
           <p className={`text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>No output selected</p>
           <p className={`text-xs mt-1 ${isDark ? "text-gray-500" : "text-gray-500"}`}>
-            Click "Output" on a card to view its output here
+            Click a card on the canvas to view its output here
           </p>
         </div>
       </div>

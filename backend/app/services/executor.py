@@ -235,12 +235,17 @@ async def execute_pipeline(
                     "_node_id": node_id,
                 }
 
-                if use_modal:
+                # Respect per-card execution mode:
+                # Only dispatch to Modal if globally enabled AND the card wants modal
+                card_wants_modal = use_modal and getattr(card, "execution_mode", "local") == "modal"
+
+                if card_wants_modal:
                     await log(f"  [{card_name}] dispatching to modal...")
                     outputs = await asyncio.to_thread(
                         _execute_modal, card, config, inputs, storage
                     )
                 else:
+                    await log(f"  [{card_name}] executing locally...")
                     outputs = await asyncio.to_thread(
                         _execute_local, card, config, inputs, storage
                     )
@@ -251,6 +256,31 @@ async def execute_pipeline(
 
                 state.node_outputs[node_id] = outputs
                 state.node_statuses[node_id] = "completed"
+
+                # Persist output preview and refs to storage (S3/disk)
+                try:
+                    preview = await asyncio.to_thread(
+                        card.get_output_preview, outputs, storage
+                    )
+                    preview_data = {
+                        "node_id": node_id,
+                        "output_type": card.output_view_type,
+                        "preview": preview,
+                    }
+                    await asyncio.to_thread(
+                        storage.save_json, pid, node_id,
+                        "_output_preview", preview_data,
+                    )
+                    await asyncio.to_thread(
+                        storage.save_json, pid, node_id,
+                        "_output_refs", {"node_type": node.type, "refs": outputs},
+                    )
+                    await log(f"  [{card_name}] output saved to storage")
+                except Exception as preview_err:
+                    await log(
+                        f"  [{card_name}] WARNING: could not cache preview: {preview_err}"
+                    )
+
                 await ws_manager.send_node_status(pid, node_id, "completed")
 
             except Exception as e:

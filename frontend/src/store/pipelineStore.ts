@@ -79,6 +79,9 @@ interface PipelineState {
   setConsoleActiveTab: (tab: "console" | "output" | "config") => void;
   setSelectedNodeIdForOutput: (nodeId: string | null) => void;
 
+  activeView: "board" | "editor";
+  setActiveView: (view: "board" | "editor") => void;
+
   getUpstreamNodeIds: (targetNodeId: string) => string[];
   toPipelineRequest: (pipelineId: string, nodeIds?: string[]) => PipelineRequest;
 }
@@ -201,6 +204,8 @@ export const usePipelineStore = create<PipelineState>()(
   consoleHeight: 300,
   consoleActiveTab: "console" as const,
   selectedNodeIdForOutput: null,
+  activeView: "board" as const,
+  setActiveView: (view) => set({ activeView: view }),
   setPipelineId: (id) => set({ pipelineId: id }),
   setIsExecuting: (executing) => set({ isExecuting: executing }),
   setExecutingNodeIds: (ids) => set({ executingNodeIds: ids }),

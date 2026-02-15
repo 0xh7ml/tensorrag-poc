@@ -39,7 +39,8 @@ body {
 .react-flow {
   --xy-background-color: var(--background);
   --xy-minimap-background: var(--bg-secondary);
-  --xy-edge-stroke: var(--border);
+  --xy-edge-stroke: #000000;
+  --xy-edge-stroke-width: 2;
   --xy-node-border-radius: 8px;
 }
 

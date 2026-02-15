@@ -86,6 +86,25 @@ export interface WSLogMessage {
 
 export type WSMessage = WSNodeStatusMessage | WSLogMessage;
 
+// --- Custom card editor types ---
+export interface CardValidationError {
+  line: number | null;
+  message: string;
+  severity: "error" | "warning";
+}
+
+export interface CardValidationResult {
+  success: boolean;
+  errors: CardValidationError[];
+  extracted_schema: CardSchema | null;
+}
+
+export interface CustomCardFile {
+  filename: string;
+  source_code: string;
+  card_type: string;
+}
+
 // --- React Flow node data ---
 export interface CardNodeData {
   label: string;

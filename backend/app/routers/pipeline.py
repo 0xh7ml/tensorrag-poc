@@ -1,6 +1,6 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
-from app.config import DEFAULT_USER_ID, settings
+from app.config import settings
 from app.models.pipeline import PipelineRequest, PipelineStatus, NodeStatus
 from app.services.dag import validate_dag
 from app.services.executor import execute_pipeline, get_pipeline_state
@@ -9,12 +9,10 @@ from app.ws.status import ws_manager
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
 
-def _get_storage(user_id: str = DEFAULT_USER_ID):
-    if settings.S3_ENABLED:
-        from app.services.s3_storage import S3StorageService
-        return S3StorageService(user_id=user_id)
-    from app.services.storage import StorageService
-    return StorageService()
+def _get_storage(user_id: str | None = None):
+    uid = user_id or settings.DEFAULT_USER_ID
+    from app.services.s3_storage import S3StorageService
+    return S3StorageService(user_id=uid)
 
 
 @router.post("/validate")

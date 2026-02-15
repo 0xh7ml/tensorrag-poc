@@ -27,6 +27,7 @@ export function PipelineCanvas() {
   const selectNode = usePipelineStore((s) => s.selectNode);
   const setConsoleOpen = usePipelineStore((s) => s.setConsoleOpen);
   const setConsoleActiveTab = usePipelineStore((s) => s.setConsoleActiveTab);
+  const setSelectedNodeIdForOutput = usePipelineStore((s) => s.setSelectedNodeIdForOutput);
   const consoleOpen = usePipelineStore((s) => s.consoleOpen);
   const consoleHeight = usePipelineStore((s) => s.consoleHeight);
 
@@ -58,10 +59,11 @@ export function PipelineCanvas() {
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
       selectNode(node.id);
+      setSelectedNodeIdForOutput(node.id);
       setConsoleActiveTab("config");
       setConsoleOpen(true);
     },
-    [selectNode, setConsoleActiveTab, setConsoleOpen]
+    [selectNode, setSelectedNodeIdForOutput, setConsoleActiveTab, setConsoleOpen]
   );
 
   const onPaneClick = useCallback(() => {
