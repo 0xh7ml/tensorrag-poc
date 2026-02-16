@@ -2,8 +2,6 @@
 
 Build custom pipeline components for TensorRag. Each card is a single Python file that defines one processing step — load data, transform it, train a model, evaluate, or anything else you need.
 
----
-
 ## Quick Start
 
 ```python
@@ -31,8 +29,6 @@ class MyCard(BaseCard):
 ```
 
 Save this file in the Editor view, click **Validate**, then **Publish to Board**.
-
----
 
 ## Card Anatomy
 
@@ -79,8 +75,6 @@ def get_output_preview(self, outputs, storage):
     }
 ```
 
----
-
 ## Schemas
 
 ### `config_schema` — User-Configurable Fields
@@ -96,7 +90,6 @@ config_schema = {
     }
 }
 ```
-
 **Supported field types:**
 
 | Type | Renders as | Python value |
@@ -165,8 +158,6 @@ output_schema = {"train_data": "dataframe", "test_data": "dataframe"}
 
 The keys in `output_schema` **must match** the keys returned by `execute()`.
 
----
-
 ## Storage API
 
 The `storage` object is passed to both `execute()` and `get_output_preview()`. Use it to save and load data between cards.
@@ -211,8 +202,6 @@ In `get_output_preview()`, load outputs using the references from `outputs`:
 ```python
 df = storage.load_dataframe(outputs["result"])
 ```
-
----
 
 ## Output View Types
 
@@ -263,8 +252,6 @@ def get_output_preview(self, outputs, storage):
 
 All three formats are auto-detected by the frontend.
 
----
-
 ### `"metrics"` — Key-Value Metrics
 
 Best for: evaluation results, loss values, training statistics, any numeric results.
@@ -309,8 +296,6 @@ def get_output_preview(self, outputs, storage):
 | `gradient_norms` | `dict[str, number]` | Layer-wise gradient norms |
 | `chart_ref` | `str` | Renders a chart image from artifacts |
 
----
-
 ### `"model_summary"` — Model Information
 
 Best for: model architecture, hyperparameters, model metadata.
@@ -346,8 +331,6 @@ def get_output_preview(self, outputs, storage):
     }
 ```
 
----
-
 ## Categories
 
 Categories control where your card appears in the sidebar palette.
@@ -360,8 +343,6 @@ Categories control where your card appears in the sidebar palette.
 | `evaluation` | Testing, metrics, validation, benchmarks |
 | `inference` | Prediction, serving, applying trained models |
 
----
-
 ## Execution Modes
 
 | Mode | Where it runs | When to use |
@@ -372,8 +353,6 @@ Categories control where your card appears in the sidebar palette.
 Cards running on Modal have access to: `pandas`, `numpy`, `scikit-learn`, `torch`, `torchvision`, `matplotlib`, `joblib`, `pyarrow`.
 
 GPU cards use Modal's T4 GPU with CUDA support and have a 10-minute timeout.
-
----
 
 ## Wiring Cards Together
 
@@ -403,8 +382,6 @@ input_schema = {"dataset": "dataframe"}
 ```
 
 Drag from Card A's `dataset` output handle to Card B's `dataset` input handle on the canvas.
-
----
 
 ## Complete Examples
 

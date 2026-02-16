@@ -28,6 +28,11 @@ image = (
         "pydantic>=2.0",
         "torch>=2.0.0",
         "torchvision>=0.15.0",
+        # LLM / datasets stack for cards like load_dataset, tokenization, LoRA, vLLM, etc.
+        "datasets",
+        "transformers",
+        "peft",
+        "trl",
     )
     .add_local_python_source("cards", "app")
 )
@@ -43,6 +48,11 @@ gpu_image = (
         "numpy",
         "matplotlib>=3.9.0",
         "pydantic>=2.0",
+        # LLM / datasets stack for GPU-backed cards
+        "datasets",
+        "transformers",
+        "peft",
+        "trl",
     )
     .pip_install(
         "torch>=2.0.0",
