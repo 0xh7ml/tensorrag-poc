@@ -12,10 +12,24 @@ from typing import Any
 
 import modal
 
+# Pre-import torchvision at module level so exec() can find it
+# This is critical for custom cards that import torchvision
+try:
+    import torchvision
+    from torchvision import datasets, transforms
+except ImportError:
+    # torchvision not available - will be caught later if needed
+    torchvision = None
+    datasets = None
+    transforms = None
+
 # ---------------------------------------------------------------------------
 # Modal App & Image
 # ---------------------------------------------------------------------------
 
+# CPU image with all dependencies including torchvision for image dataset loading
+# CPU-only PyTorch installation (no CUDA)
+# v2026.02.17.1 - Fixed torchvision submodule imports
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install(
@@ -26,13 +40,30 @@ image = (
         "numpy",
         "matplotlib>=3.9.0",
         "pydantic>=2.0",
-        "torch>=2.0.0",
-        "torchvision>=0.15.0",
         # LLM / datasets stack for cards like load_dataset, tokenization, LoRA, vLLM, etc.
         "datasets",
         "transformers",
         "peft",
         "trl",
+    )
+    .pip_install(
+        # PyTorch ecosystem - CPU-only versions (no CUDA)
+        # Use index_url to ensure CPU-only builds
+        "torch>=2.0.0",
+        "torchvision>=0.15.0",
+        "torchaudio>=2.0.0",
+        index_url="https://download.pytorch.org/whl/cpu",  # CPU-only index
+    )
+    .run_commands(
+        # Comprehensive verification of torchvision installation
+        "python -c '"
+        "import torchvision; "
+        "from torchvision import datasets, transforms; "
+        "print(f\"✓ torchvision {torchvision.__version__} (CPU) installed\"); "
+        "print(f\"✓ datasets module: {datasets}\"); "
+        "print(f\"✓ transforms module: {transforms}\"); "
+        "print(\"✓ All torchvision imports successful\")"
+        "'"
     )
     .add_local_python_source("cards", "app")
 )
@@ -57,10 +88,13 @@ gpu_image = (
         "accelerate",  # Required for transformers + bitsandbytes
     )
     .pip_install(
+        # PyTorch ecosystem with CUDA support - install from CUDA index
         "torch>=2.0.0",
         "torchvision>=0.15.0",
+        "torchaudio>=2.0.0",
         index_url="https://download.pytorch.org/whl/cu118",  # CUDA 11.8
     )
+    .run_commands("python -c 'import torch; import torchvision; print(f\"PyTorch {torch.__version__}, torchvision {torchvision.__version__} (CUDA) installed\")'")
     .add_local_python_source("cards", "app")
 )
 
@@ -204,6 +238,30 @@ def _instantiate_card(card_type: str, source_code: str | None = None):
 
         from cards.base import BaseCard
 
+        # CRITICAL: Ensure torchvision is available in the container
+        print(f"[DEBUG] _instantiate_card called for {card_type}")
+        print(f"[DEBUG] Python path: {sys.path[:3]}")
+        print(f"[DEBUG] Attempting to import torchvision...")
+        
+        try:
+            import torchvision
+            print(f"[DEBUG] ✓ torchvision imported: {torchvision.__version__}")
+            print(f"[DEBUG] ✓ torchvision location: {torchvision.__file__}")
+            print(f"[DEBUG] ✓ torchvision.datasets: {hasattr(torchvision, 'datasets')}")
+            print(f"[DEBUG] ✓ torchvision.transforms: {hasattr(torchvision, 'transforms')}")
+            
+            # Ensure torchvision is in sys.modules
+            sys.modules["torchvision"] = torchvision
+            print(f"[DEBUG] ✓ torchvision added to sys.modules")
+        except ImportError as e:
+            print(f"[ERROR] Failed to import torchvision: {e}")
+            import subprocess
+            result = subprocess.run(["pip", "list"], capture_output=True, text=True)
+            print(f"[DEBUG] Installed packages:\n{result.stdout}")
+            raise RuntimeError(
+                f"torchvision is required but not available in Modal container. Error: {e}"
+            ) from e
+
         module_name = f"modal_custom_card_{card_type}"
         sys.modules.pop(module_name, None)
         spec = importlib.util.spec_from_loader(module_name, loader=None)
@@ -211,8 +269,20 @@ def _instantiate_card(card_type: str, source_code: str | None = None):
             raise RuntimeError(f"Failed to create module spec for {module_name}")
         module = importlib.util.module_from_spec(spec)
         module.__dict__["__builtins__"] = __builtins__
-        exec("from cards.base import BaseCard", module.__dict__)  # noqa: S102
-        exec(source_code, module.__dict__)  # noqa: S102
+        
+        print(f"[DEBUG] Executing card source code...")
+        try:
+            exec("from cards.base import BaseCard", module.__dict__)  # noqa: S102
+            print(f"[DEBUG] ✓ BaseCard imported")
+            exec(source_code, module.__dict__)  # noqa: S102
+            print(f"[DEBUG] ✓ Card source code executed")
+        except ImportError as e:
+            print(f"[ERROR] Import failed during exec(): {e}")
+            print(f"[DEBUG] sys.modules keys containing 'torch': {[k for k in sys.modules.keys() if 'torch' in k.lower()]}")
+            raise
+        except Exception as e:
+            print(f"[ERROR] Unexpected error during exec(): {e}")
+            raise
         sys.modules[module_name] = module
 
         for attr_name in dir(module):
@@ -243,10 +313,43 @@ def run_card(
     Returns:
         {output_key: {"type": str, "data": bytes|dict, "ext": str}}
     """
+    # CRITICAL: Pre-import torchvision and its submodules
+    # This ensures they're in sys.modules before card code imports them
+    import sys
+    try:
+        import torchvision
+        import torchvision.datasets
+        import torchvision.transforms
+        
+        print(f"✓ torchvision {torchvision.__version__} verified and registered in sys.modules")
+        print(f"✓ torchvision in sys.modules: {'torchvision' in sys.modules}")
+        print(f"✓ torchvision.datasets in sys.modules: {'torchvision.datasets' in sys.modules}")
+        print(f"✓ torchvision.transforms in sys.modules: {'torchvision.transforms' in sys.modules}")
+    except ImportError as e:
+        raise RuntimeError(
+            f"torchvision not available in Modal CPU container. "
+            f"Image should include torchvision>=0.15.0 from CPU index. Error: {e}"
+        ) from e
+    
+    # Now instantiate the card (torchvision is already in sys.modules)
     storage = MemoryStorage(serialized_inputs)
+    print(f"[DEBUG] About to instantiate card: {card_type}")
     card = _instantiate_card(card_type, source_code)
-    card.execute(config, storage.input_refs, storage)
-    return storage.get_serialized_outputs()
+    print(f"[DEBUG] Card instantiated successfully: {card.__class__.__name__}")
+    print(f"[DEBUG] About to execute card.execute()")
+    
+    try:
+        result = card.execute(config, storage.input_refs, storage)
+        print(f"[DEBUG] Card execute() completed, result: {result}")
+    except Exception as e:
+        print(f"[ERROR] Exception during card.execute(): {type(e).__name__}: {e}")
+        import traceback
+        print(f"[ERROR] Full traceback:\n{traceback.format_exc()}")
+        raise
+    
+    outputs = storage.get_serialized_outputs()
+    print(f"[DEBUG] Serialized outputs: {list(outputs.keys())}")
+    return outputs
 
 
 @app.function(image=gpu_image, gpu="T4", timeout=600)
@@ -267,6 +370,19 @@ def run_card_gpu(
     Returns:
         {output_key: {"type": str, "data": bytes|dict, "ext": str}}
     """
+    # Pre-import torchvision and its submodules (same as CPU function)
+    import sys
+    try:
+        import torchvision
+        import torchvision.datasets
+        import torchvision.transforms
+        
+        print(f"✓ [GPU] torchvision {torchvision.__version__} verified")
+        print(f"✓ [GPU] torchvision.datasets in sys.modules: {'torchvision.datasets' in sys.modules}")
+        print(f"✓ [GPU] torchvision.transforms in sys.modules: {'torchvision.transforms' in sys.modules}")
+    except ImportError as e:
+        print(f"[WARNING] torchvision not available in GPU image: {e}")
+    
     storage = MemoryStorage(serialized_inputs)
     card = _instantiate_card(card_type, source_code)
     card.execute(config, storage.input_refs, storage)
@@ -310,12 +426,19 @@ def serialize_inputs(
             df.to_parquet(buf, index=False)
             serialized[name] = {"type": "dataframe", "data": buf.getvalue()}
         elif dtype == "model":
-            import joblib
-
-            model = storage.load_model(ref)
-            buf = io.BytesIO()
-            joblib.dump(model, buf)
-            serialized[name] = {"type": "model", "data": buf.getvalue()}
+            # Model data is stored as raw bytes (joblib-pickled)
+            # Don't try to load_model() as that would require ML libraries
+            # Just read the raw bytes and pass them to Modal
+            try:
+                raw = storage.load_bytes(ref)
+                serialized[name] = {"type": "model", "data": raw}
+            except:
+                # Fallback for old data that was stored using save_model
+                import joblib
+                model = storage.load_model(ref)
+                buf = io.BytesIO()
+                joblib.dump(model, buf)
+                serialized[name] = {"type": "model", "data": buf.getvalue()}
         elif dtype == "json":
             data = storage.load_json(ref)
             serialized[name] = {"type": "json", "data": data}
@@ -357,8 +480,10 @@ def deserialize_outputs(
             df = pd.read_parquet(io.BytesIO(data))
             refs[key] = storage.save_dataframe(pipeline_id, node_id, key, df)
         elif dtype == "model":
-            model = joblib.load(io.BytesIO(data))
-            refs[key] = storage.save_model(pipeline_id, node_id, key, model)
+            # Don't deserialize in backend - just save raw bytes
+            # The pickled object may contain ML library objects (torchvision, transformers, etc.)
+            # which we don't want to install in the backend
+            refs[key] = storage.save_bytes(pipeline_id, node_id, key, data, "joblib")
         elif dtype == "json":
             refs[key] = storage.save_json(pipeline_id, node_id, key, data)
         elif dtype == "bytes":

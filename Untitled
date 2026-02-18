@@ -1,2 +1,0 @@
-Work Update: 
-- Working on TensorRag feature R&D, currently working on dividing each step of training into individual components, working with gpu based training components (DL models).

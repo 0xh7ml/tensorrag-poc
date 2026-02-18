@@ -270,20 +270,23 @@ async def execute_pipeline(
                     "_node_id": node_id,
                 }
 
-                # Respect per-card execution mode:
-                # Only dispatch to Modal if globally enabled AND the card wants modal
-                card_wants_modal = use_modal and getattr(card, "execution_mode", "local") == "modal"
-
-                if card_wants_modal:
-                    await log(f"  [{card_name}] dispatching to modal...")
+                # All execution happens in Modal - backend only extracts schemas
+                # The card wrapper doesn't have execute(), so we always route to Modal
+                if not use_modal:
+                    raise RuntimeError(
+                        "Modal execution is required. All card execution happens in Modal, "
+                        "not in the backend. Please enable Modal execution."
+                    )
+                
+                await log(f"  [{card_name}] dispatching to modal...")
+                try:
                     outputs = await asyncio.to_thread(
                         _execute_modal, card, config, inputs, storage
                     )
-                else:
-                    await log(f"  [{card_name}] executing locally...")
-                    outputs = await asyncio.to_thread(
-                        _execute_local, card, config, inputs, storage
-                    )
+                    await log(f"  [{card_name}] Modal execution returned successfully")
+                except Exception as modal_err:
+                    await log(f"  [{card_name}] ERROR in Modal execution: {modal_err}")
+                    raise
 
                 elapsed = time.time() - node_start
                 output_keys = list(outputs.keys()) if outputs else []
@@ -291,32 +294,52 @@ async def execute_pipeline(
 
                 state.node_outputs[node_id] = outputs
                 state.node_statuses[node_id] = "completed"
+                await log(f"  [{card_name}] State updated to completed")
 
                 # Persist output preview and refs to storage (S3/disk)
+                # Preview generation is optional - try to generate if possible
+                await log(f"  [{card_name}] Attempting preview generation...")
                 try:
-                    preview = await asyncio.to_thread(
-                        card.get_output_preview, outputs, storage
-                    )
-                    preview_data = {
-                        "node_id": node_id,
-                        "output_type": card.output_view_type,
-                        "preview": preview,
-                    }
-                    await asyncio.to_thread(
-                        storage.save_json, pid, node_id,
-                        "_output_preview", preview_data,
-                    )
+                    from cards.registry import _instantiate_for_preview
+                    preview_card = _instantiate_for_preview(node.type)
+                    if preview_card:
+                        preview = await asyncio.to_thread(
+                            preview_card.get_output_preview, outputs, storage
+                        )
+                        preview_data = {
+                            "node_id": node_id,
+                            "output_type": card.schema.output_view_type,
+                            "preview": preview,
+                        }
+                        await log(f"  [{card_name}] Preview generated successfully")
+                    else:
+                        preview_data = None
+                        await log(f"  [{card_name}] No preview card available")
+                except Exception as preview_err:
+                    await log(f"  [{card_name}] Preview generation failed: {preview_err}")
+                    preview_data = None
+                
+                # Save preview and refs if available
+                await log(f"  [{card_name}] Saving outputs to storage...")
+                try:
+                    if preview_data:
+                        await asyncio.to_thread(
+                            storage.save_json, pid, node_id,
+                            "_output_preview", preview_data,
+                        )
                     await asyncio.to_thread(
                         storage.save_json, pid, node_id,
                         "_output_refs", {"node_type": node.type, "refs": outputs},
                     )
                     await log(f"  [{card_name}] output saved to storage")
-                except Exception as preview_err:
+                except Exception as storage_err:
                     await log(
-                        f"  [{card_name}] WARNING: could not cache preview: {preview_err}"
+                        f"  [{card_name}] WARNING: could not cache outputs: {storage_err}"
                     )
 
+                await log(f"  [{card_name}] Sending completed status to WebSocket...")
                 await ws_manager.send_node_status(pid, node_id, "completed")
+                await log(f"  [{card_name}] Node fully completed")
 
             except Exception as e:
                 elapsed = time.time() - node_start

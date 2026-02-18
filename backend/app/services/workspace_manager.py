@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import ast
-import importlib.util
 import json
 import sys
 from typing import Optional
 
 from app.config import settings
-from cards.base import BaseCard
-from cards.registry import CARD_REGISTRY
+from app.services.card_validator import validate_card_source
+from cards.registry import register_schema
 
 
 def _get_s3_client():
@@ -211,7 +210,8 @@ class WorkspaceManager:
 
     def load_and_register_project_cards(self, project: str) -> list[dict]:
         """Clear previous custom cards, load all .py from the project, and
-        register them in CARD_REGISTRY. Returns list of {card_type, path}."""
+        register their schemas (extracted via AST parsing, no execution).
+        Returns list of {card_type, path}."""
         # Unregister cards from previously activated project
         self._unregister_custom_cards()
 
@@ -240,43 +240,40 @@ class WorkspaceManager:
         return registered
 
     def _unregister_custom_cards(self) -> None:
+        from cards.registry import SCHEMA_REGISTRY
         for ct in self._custom_card_types:
-            CARD_REGISTRY.pop(ct, None)
-            sys.modules.pop(f"custom_card_{ct}", None)
+            SCHEMA_REGISTRY.pop(ct, None)
         self._custom_card_types.clear()
 
     def _register_card(
         self, filename: str, source_code: str, card_type: str
     ) -> None:
-        CARD_REGISTRY.pop(card_type, None)
+        """Extract schema from card source using AST parsing (no execution).
+        
+        All execution happens in Modal - the backend only needs schemas for UI/validation.
+        """
+        from cards.registry import SCHEMA_REGISTRY
+        SCHEMA_REGISTRY.pop(card_type, None)
 
-        module_name = f"custom_card_{card_type}"
-        sys.modules.pop(module_name, None)
-
-        spec = importlib.util.spec_from_loader(module_name, loader=None)
-        if spec is None:
-            raise RuntimeError(f"Failed to create module spec for {module_name}")
-        module = importlib.util.module_from_spec(spec)
-        module.__dict__["__builtins__"] = __builtins__
-
-        exec(  # noqa: S102
-            "from cards.base import BaseCard",
-            module.__dict__,
-        )
-        exec(source_code, module.__dict__)  # noqa: S102
-        sys.modules[module_name] = module
-
-        for attr_name in dir(module):
-            attr = getattr(module, attr_name)
-            if (
-                isinstance(attr, type)
-                and issubclass(attr, BaseCard)
-                and attr is not BaseCard
-            ):
-                instance = attr()
-                CARD_REGISTRY[card_type] = instance
-                self._custom_card_types.append(card_type)
-                break
+        # Use AST parsing to extract schema without executing code
+        result = validate_card_source(source_code)
+        if not result["success"]:
+            errors = result.get("errors", [])
+            error_msgs = "; ".join([e.get("message", "Unknown error") for e in errors])
+            raise RuntimeError(
+                f"Failed to extract schema from card {filename}: {error_msgs}"
+            )
+        
+        extracted_schema = result.get("extracted_schema")
+        if not extracted_schema:
+            raise RuntimeError(f"Could not extract schema from card {filename}")
+        
+        # Register the schema (no card instance needed)
+        # Store source code for optional on-demand preview generation
+        from app.models.card import CardSchema
+        schema = CardSchema(**extracted_schema)
+        register_schema(schema, source_code=source_code)
+        self._custom_card_types.append(card_type)
 
     @staticmethod
     def _extract_card_type(source_code: str) -> Optional[str]:

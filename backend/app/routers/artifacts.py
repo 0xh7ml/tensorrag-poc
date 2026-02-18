@@ -46,25 +46,35 @@ def get_card_output(pipeline_id: str, node_id: str):
 
     outputs = state.node_outputs[node_id]
 
-    from cards.registry import CARD_REGISTRY
-
-    for card in CARD_REGISTRY.values():
-        output_keys = set(card.output_schema.keys())
+    # Try to generate preview using on-demand card instantiation
+    # Preview is optional - if it fails, we return basic output info
+    from cards.registry import SCHEMA_REGISTRY, _instantiate_for_preview
+    
+    for schema in SCHEMA_REGISTRY.values():
+        output_keys = set(schema.output_schema.keys())
         if output_keys and output_keys.issubset(set(outputs.keys())):
             try:
-                preview = card.get_output_preview(outputs, storage)
-                return {
-                    "node_id": node_id,
-                    "output_type": card.output_view_type,
-                    "preview": preview,
-                }
+                # Instantiate card on-demand for preview (uses mocks, doesn't need ML libs)
+                card = _instantiate_for_preview(schema.card_type)
+                if card:
+                    preview = card.get_output_preview(outputs, storage)
+                    return {
+                        "node_id": node_id,
+                        "output_type": schema.output_view_type,
+                        "preview": preview,
+                    }
             except Exception:
                 continue
-
-    raise HTTPException(
-        status_code=500,
-        detail=f"Could not generate preview for node '{node_id}'",
-    )
+    
+    # Fallback: return basic output info if preview generation fails
+    return {
+        "node_id": node_id,
+        "output_type": "table",
+        "preview": {
+            "type": "table",
+            "data": {k: str(v)[:100] for k, v in outputs.items()},
+        },
+    }
 
 
 @router.get("/artifacts/{pipeline_id}/{node_id}/{key}")
