@@ -1,21 +1,16 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from app.config import settings
 from app.services.executor import get_pipeline_state
+from app.services.storage_factory import get_authenticated_storage
 
 router = APIRouter(tags=["artifacts"])
 
 
-def _get_storage(user_id: str | None = None):
-    uid = user_id or settings.DEFAULT_USER_ID
-    from app.services.s3_storage import S3StorageService
-    return S3StorageService(user_id=uid)
-
-
 @router.get("/card/{pipeline_id}/{node_id}/output")
-def get_card_output(pipeline_id: str, node_id: str):
-    storage = _get_storage()
+def get_card_output(pipeline_id: str, node_id: str, request: Request):
+    storage = get_authenticated_storage(request)
 
     # 1) Try cached preview from S3
     try:
@@ -78,8 +73,8 @@ def get_card_output(pipeline_id: str, node_id: str):
 
 
 @router.get("/artifacts/{pipeline_id}/{node_id}/{key}")
-def get_artifact(pipeline_id: str, node_id: str, key: str):
-    storage = _get_storage()
+def get_artifact(pipeline_id: str, node_id: str, key: str, request: Request):
+    storage = get_authenticated_storage(request)
 
     # Try in-memory state first
     ref = None

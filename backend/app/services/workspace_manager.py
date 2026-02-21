@@ -20,6 +20,7 @@ def _get_s3_client():
     }
     if settings.S3_ENDPOINT:
         kwargs["endpoint_url"] = settings.S3_ENDPOINT
+    
     return boto3.client("s3", **kwargs)
 
 
@@ -43,7 +44,10 @@ class WorkspaceManager:
     @property
     def _ws_prefix(self) -> str:
         return f"{self.user_id}/workspace"
-
+    
+    @property
+    def _bucket_name(self) -> str:
+        return settings.S3_BUCKET
     def _project_prefix(self, project: str) -> str:
         return f"{self._ws_prefix}/{project}"
 
@@ -59,7 +63,7 @@ class WorkspaceManager:
         prefix = f"{self._ws_prefix}/"
         paginator = s3.get_paginator("list_objects_v2")
         projects: set[str] = set()
-        for page in paginator.paginate(Bucket=settings.S3_BUCKET, Prefix=prefix, Delimiter="/"):
+        for page in paginator.paginate(Bucket=self._bucket_name, Prefix=prefix, Delimiter="/"):
             for cp in page.get("CommonPrefixes", []):
                 name = cp["Prefix"][len(prefix):].rstrip("/")
                 if name:
@@ -71,7 +75,7 @@ class WorkspaceManager:
         key = f"{self._project_prefix(name)}/_pipeline.json"
         empty_state = {"nodes": [], "edges": [], "nodeCounter": 0}
         s3.put_object(
-            Bucket=settings.S3_BUCKET,
+            Bucket=self._bucket_name,
             Key=key,
             Body=json.dumps(empty_state).encode(),
             ContentType="application/json",
@@ -81,11 +85,11 @@ class WorkspaceManager:
         s3 = _get_s3_client()
         prefix = f"{self._project_prefix(name)}/"
         paginator = s3.get_paginator("list_objects_v2")
-        for page in paginator.paginate(Bucket=settings.S3_BUCKET, Prefix=prefix):
+        for page in paginator.paginate(Bucket=self._bucket_name, Prefix=prefix):
             objects = page.get("Contents", [])
             if objects:
                 s3.delete_objects(
-                    Bucket=settings.S3_BUCKET,
+                    Bucket=self._bucket_name,
                     Delete={"Objects": [{"Key": obj["Key"]} for obj in objects]},
                 )
 
@@ -97,7 +101,7 @@ class WorkspaceManager:
         s3 = _get_s3_client()
         key = f"{self._project_prefix(project)}/_pipeline.json"
         s3.put_object(
-            Bucket=settings.S3_BUCKET,
+            Bucket=self._bucket_name,
             Key=key,
             Body=json.dumps(state, default=str).encode(),
             ContentType="application/json",
@@ -107,7 +111,7 @@ class WorkspaceManager:
         s3 = _get_s3_client()
         key = f"{self._project_prefix(project)}/_pipeline.json"
         try:
-            resp = s3.get_object(Bucket=settings.S3_BUCKET, Key=key)
+            resp = s3.get_object(Bucket=self._bucket_name, Key=key)
             return json.loads(resp["Body"].read())
         except s3.exceptions.NoSuchKey:
             return {"nodes": [], "edges": [], "nodeCounter": 0}
@@ -127,7 +131,7 @@ class WorkspaceManager:
         files: list[dict] = []
         folders: set[str] = set()
 
-        for page in paginator.paginate(Bucket=settings.S3_BUCKET, Prefix=prefix):
+        for page in paginator.paginate(Bucket=self._bucket_name, Prefix=prefix):
             for obj in page.get("Contents", []):
                 key = obj["Key"]
                 rel = key[len(prefix):]
@@ -155,7 +159,7 @@ class WorkspaceManager:
     def get_card_source(self, project: str, path: str) -> str:
         s3 = _get_s3_client()
         key = f"{self._cards_prefix(project)}/{path}"
-        resp = s3.get_object(Bucket=settings.S3_BUCKET, Key=key)
+        resp = s3.get_object(Bucket=self._bucket_name, Key=key)
         return resp["Body"].read().decode("utf-8")
 
     def save_card_file(self, project: str, path: str, source_code: str) -> str:
@@ -167,7 +171,7 @@ class WorkspaceManager:
         s3 = _get_s3_client()
         key = f"{self._cards_prefix(project)}/{path}"
         s3.put_object(
-            Bucket=settings.S3_BUCKET,
+            Bucket=self._bucket_name,
             Key=key,
             Body=source_code.encode("utf-8"),
             ContentType="text/x-python",
@@ -177,7 +181,7 @@ class WorkspaceManager:
     def delete_card_file(self, project: str, path: str) -> None:
         s3 = _get_s3_client()
         key = f"{self._cards_prefix(project)}/{path}"
-        s3.delete_object(Bucket=settings.S3_BUCKET, Key=key)
+        s3.delete_object(Bucket=self._bucket_name, Key=key)
 
     def delete_folder(self, project: str, path: str) -> None:
         """Delete a folder and all its contents from S3."""
@@ -185,11 +189,11 @@ class WorkspaceManager:
         folder = path.rstrip("/")
         prefix = f"{self._cards_prefix(project)}/{folder}/"
         paginator = s3.get_paginator("list_objects_v2")
-        for page in paginator.paginate(Bucket=settings.S3_BUCKET, Prefix=prefix):
+        for page in paginator.paginate(Bucket=self._bucket_name, Prefix=prefix):
             objects = page.get("Contents", [])
             if objects:
                 s3.delete_objects(
-                    Bucket=settings.S3_BUCKET,
+                    Bucket=self._bucket_name,
                     Delete={"Objects": [{"Key": obj["Key"]} for obj in objects]},
                 )
 
@@ -198,7 +202,7 @@ class WorkspaceManager:
         folder = path.rstrip("/")
         key = f"{self._cards_prefix(project)}/{folder}/.keep"
         s3.put_object(
-            Bucket=settings.S3_BUCKET,
+            Bucket=self._bucket_name,
             Key=key,
             Body=b"",
             ContentType="application/octet-stream",
@@ -220,14 +224,14 @@ class WorkspaceManager:
         paginator = s3.get_paginator("list_objects_v2")
 
         registered: list[dict] = []
-        for page in paginator.paginate(Bucket=settings.S3_BUCKET, Prefix=prefix):
+        for page in paginator.paginate(Bucket=self._bucket_name, Prefix=prefix):
             for obj in page.get("Contents", []):
                 key = obj["Key"]
                 rel = key[len(prefix):]
                 if not rel.endswith(".py"):
                     continue
                 try:
-                    resp = s3.get_object(Bucket=settings.S3_BUCKET, Key=key)
+                    resp = s3.get_object(Bucket=self._bucket_name, Key=key)
                     source = resp["Body"].read().decode("utf-8")
                     card_type = self._extract_card_type(source)
                     if card_type:

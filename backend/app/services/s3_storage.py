@@ -12,7 +12,7 @@ from app.config import settings
 
 
 class S3StorageService:
-    """Drop-in replacement for StorageService that uses S3/MinIO."""
+    """Storage service for S3-compatible backends (AWS S3, Cloudflare R2, MinIO, etc.)"""
 
     def __init__(self, user_id: str = "default") -> None:
         client_kwargs: dict[str, Any] = {
@@ -28,7 +28,15 @@ class S3StorageService:
         self.user_id = user_id
 
     def _key(self, pipeline_id: str, node_id: str, key: str, ext: str) -> str:
-        return f"{self.user_id}/{pipeline_id}/{node_id}/{key}.{ext}"
+        return f"{self.user_id}/workspace/{pipeline_id}/{node_id}/{key}.{ext}"
+    
+    def _workspace_key(self, project_name: str, path: str) -> str:
+        """Generate key for workspace files like pipeline.json or custom cards"""
+        return f"{self.user_id}/workspace/{project_name}/{path}"
+    
+    def _custom_card_key(self, filename: str) -> str:
+        """Generate key for global custom cards"""
+        return f"{self.user_id}/custom_cards/{filename}"
 
     def _ref(self, s3_key: str) -> str:
         return f"s3://{self.bucket}/{s3_key}"
@@ -102,8 +110,12 @@ class S3StorageService:
 
     # --- Cleanup ---
 
-    def cleanup_pipeline(self, pipeline_id: str) -> None:
-        prefix = f"{self.user_id}/{pipeline_id}/"
+    def cleanup_pipeline(self, project_name: str, pipeline_id: str | None = None) -> None:
+        """Cleanup pipeline data within a workspace project"""
+        if pipeline_id:
+            prefix = f"{self.user_id}/workspace/{project_name}/{pipeline_id}/"
+        else:
+            prefix = f"{self.user_id}/workspace/{project_name}/"
         paginator = self.s3.get_paginator("list_objects_v2")
         for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
             objects = page.get("Contents", [])
@@ -112,6 +124,74 @@ class S3StorageService:
                     Bucket=self.bucket,
                     Delete={"Objects": [{"Key": obj["Key"]} for obj in objects]},
                 )
+
+    # --- Workspace Operations ---
+
+    def save_pipeline_state(self, project_name: str, pipeline_data: dict) -> str:
+        """Save pipeline state to workspace"""
+        key = self._workspace_key(project_name, "_pipeline.json")
+        body = json.dumps(pipeline_data, default=str).encode()
+        self.s3.put_object(Bucket=self.bucket, Key=key, Body=body)
+        return self._ref(key)
+
+    def load_pipeline_state(self, project_name: str) -> dict:
+        """Load pipeline state from workspace"""
+        key = self._workspace_key(project_name, "_pipeline.json")
+        try:
+            resp = self.s3.get_object(Bucket=self.bucket, Key=key)
+            return json.loads(resp["Body"].read())
+        except self.s3.exceptions.NoSuchKey:
+            return {}
+
+    def save_custom_card(self, project_name: str, card_path: str, card_code: str) -> str:
+        """Save custom card to project workspace"""
+        key = self._workspace_key(project_name, f"cards/{card_path}")
+        self.s3.put_object(Bucket=self.bucket, Key=key, Body=card_code.encode())
+        return self._ref(key)
+
+    def load_custom_card(self, project_name: str, card_path: str) -> str:
+        """Load custom card from project workspace"""
+        key = self._workspace_key(project_name, f"cards/{card_path}")
+        resp = self.s3.get_object(Bucket=self.bucket, Key=key)
+        return resp["Body"].read().decode()
+
+    def list_custom_cards(self, project_name: str) -> list[str]:
+        """List all custom cards in a project"""
+        prefix = self._workspace_key(project_name, "cards/")
+        paginator = self.s3.get_paginator("list_objects_v2")
+        card_paths = []
+        for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                # Remove prefix to get relative path
+                relative_path = obj["Key"][len(prefix):]
+                if relative_path.endswith(".py"):
+                    card_paths.append(relative_path)
+        return card_paths
+
+    def list_projects(self) -> list[str]:
+        """List all projects in user's workspace"""
+        prefix = f"{self.user_id}/workspace/"
+        paginator = self.s3.get_paginator("list_objects_v2")
+        projects = set()
+        for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix, Delimiter="/"):
+            for obj in page.get("CommonPrefixes", []):
+                project_name = obj["Prefix"][len(prefix):].rstrip("/")
+                projects.add(project_name)
+        return list(projects)
+
+    # --- Legacy Global Custom Cards ---
+
+    def save_global_custom_card(self, filename: str, card_code: str) -> str:
+        """Save global custom card (legacy)"""
+        key = self._custom_card_key(filename)
+        self.s3.put_object(Bucket=self.bucket, Key=key, Body=card_code.encode())
+        return self._ref(key)
+
+    def load_global_custom_card(self, filename: str) -> str:
+        """Load global custom card (legacy)"""
+        key = self._custom_card_key(filename)
+        resp = self.s3.get_object(Bucket=self.bucket, Key=key)
+        return resp["Body"].read().decode()
 
     # --- Helpers ---
 

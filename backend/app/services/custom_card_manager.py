@@ -10,7 +10,7 @@ from cards.registry import register_schema
 
 
 def _get_s3_client():
-    """Create a boto3 S3 client from settings."""
+    """Create a boto3 S3 client from settings (supports S3-compatible services like R2)."""
     import boto3
 
     kwargs = {
@@ -20,27 +20,28 @@ def _get_s3_client():
     }
     if settings.S3_ENDPOINT:
         kwargs["endpoint_url"] = settings.S3_ENDPOINT
+    
     return boto3.client("s3", **kwargs)
 
 
 class CustomCardManager:
-    """Manages user-created custom card files in S3 and the card registry.
+    """Manages user-created custom card files in S3/R2 and the card registry.
 
-    Card source files are persisted to S3 under ``custom_cards/<filename>``.
-    On startup, all cards are loaded from S3 and registered in-memory.
-    No local disk storage is used.
+    Card source files are persisted to S3/R2 under ``{user_id}/custom_cards/<filename>``.
+    This provides per-user isolation for custom cards.
     """
 
-    S3_PREFIX = "custom_cards"
+    def __init__(self, user_id: str | None = None) -> None:
+        self.user_id = user_id or settings.DEFAULT_USER_ID
+        self._custom_cards: dict[str, dict] = {}
 
     @property
     def _s3_prefix(self) -> str:
-        return f"{settings.DEFAULT_USER_ID}/{self.S3_PREFIX}"
-
-    def __init__(self) -> None:
-        self._custom_cards: dict[str, dict] = {}
-        # No longer auto-load on startup — cards are now project-scoped
-        # via workspace_manager. This class is kept for backward compat.
+        return f"{self.user_id}/custom_cards"
+    
+    @property
+    def _bucket_name(self) -> str:
+        return settings.S3_BUCKET
 
     # ------------------------------------------------------------------
     # Public API
@@ -56,7 +57,7 @@ class CustomCardManager:
         s3 = _get_s3_client()
         s3_key = f"{self._s3_prefix}/{filename}"
         s3.put_object(
-            Bucket=settings.S3_BUCKET,
+            Bucket=self._bucket_name,
             Key=s3_key,
             Body=source_code.encode("utf-8"),
             ContentType="text/x-python",
@@ -82,7 +83,7 @@ class CustomCardManager:
         try:
             s3 = _get_s3_client()
             s3_key = f"{self._s3_prefix}/{filename}"
-            s3.delete_object(Bucket=settings.S3_BUCKET, Key=s3_key)
+            s3.delete_object(Bucket=self._bucket_name, Key=s3_key)
         except Exception:
             pass
 
@@ -103,7 +104,7 @@ class CustomCardManager:
             s3 = _get_s3_client()
             paginator = s3.get_paginator("list_objects_v2")
             for page in paginator.paginate(
-                Bucket=settings.S3_BUCKET, Prefix=f"{self._s3_prefix}/"
+                Bucket=self._bucket_name, Prefix=f"{self._s3_prefix}/"
             ):
                 for obj in page.get("Contents", []):
                     key = obj["Key"]
@@ -111,7 +112,7 @@ class CustomCardManager:
                     if not filename.endswith(".py"):
                         continue
                     try:
-                        resp = s3.get_object(Bucket=settings.S3_BUCKET, Key=key)
+                        resp = s3.get_object(Bucket=self._bucket_name, Key=key)
                         source_code = resp["Body"].read().decode("utf-8")
                         card_type = self._extract_card_type(source_code)
                         if card_type:
@@ -179,7 +180,3 @@ class CustomCardManager:
         except Exception:
             pass
         return None
-
-
-# Singleton instance — imported by the router
-custom_card_manager = CustomCardManager()
