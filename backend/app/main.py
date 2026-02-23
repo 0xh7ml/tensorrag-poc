@@ -1,9 +1,20 @@
+"""
+TensorRag Backend - MVC Architecture
+
+Structure:
+- Models (app.models): Data models and Pydantic schemas
+- Views (app.views): API endpoints and request/response handling  
+- Controllers (app.controllers): Business logic and data manipulation
+- Middleware (app.middleware): Authentication and request processing
+- WebSockets (app.ws): Real-time communication handlers
+"""
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.middleware.auth import IAMAuthMiddleware
-from app.routers import pipeline, cards, artifacts, workspace
+from app.views import pipeline, cards, artifacts, workspace
 from app.ws.status import ws_manager
 
 app = FastAPI(title="TensorRag", version="0.1.0")
