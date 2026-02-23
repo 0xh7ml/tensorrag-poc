@@ -1,10 +1,16 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+import uuid
+from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
 from pydantic import BaseModel
 
+from app.models.pipeline import PipelineRequest, NodeConfig, EdgeConfig
 from app.services.workspace_manager import WorkspaceManager
 from app.services.card_validator import validate_card_source
+from app.services.dag import validate_dag
+from app.services.executor import execute_pipeline
+from app.services.storage_factory import get_storage_for_user
+from app.ws.status import ws_manager
 from cards.registry import list_cards
 
 router = APIRouter(tags=["workspace"])
@@ -157,3 +163,71 @@ def activate_project(name: str, request: Request):
     registered = workspace_mgr.load_and_register_project_cards(name)
     schemas = list_cards()
     return {"registered": registered, "cards": schemas}
+
+
+# -- Execute all pipelines in a project --
+
+@router.post("/projects/{name}/execute")
+async def execute_project_pipeline(name: str, background_tasks: BackgroundTasks, request: Request):
+    """Execute all pipeline nodes in the specified project"""
+    workspace_mgr = get_workspace_manager(request)
+    
+    # Load the pipeline state from the project
+    pipeline_state = workspace_mgr.load_pipeline_state(name)
+    
+    # Check if there are any nodes to execute
+    if not pipeline_state.get("nodes") or len(pipeline_state["nodes"]) == 0:
+        raise HTTPException(status_code=400, detail="No pipeline nodes found in project")
+    
+    # Convert the pipeline state to a PipelineRequest
+    nodes = []
+    for node in pipeline_state["nodes"]:
+        nodes.append(NodeConfig(
+            id=node["id"],
+            type=node["type"],
+            config=node.get("data", {}),  # Node config is typically stored in 'data' field
+            position=node.get("position", {"x": 0, "y": 0})
+        ))
+    
+    edges = []
+    for edge in pipeline_state.get("edges", []):
+        edges.append(EdgeConfig(
+            source=edge["source"],
+            target=edge["target"],
+            source_output=edge.get("sourceHandle", "default"),
+            target_input=edge.get("targetHandle", "default")
+        ))
+    
+    # Generate a unique pipeline ID
+    pipeline_id = f"{name}_{str(uuid.uuid4())}"
+    
+    pipeline_request = PipelineRequest(
+        pipeline_id=pipeline_id,
+        nodes=nodes,
+        edges=edges
+    )
+    
+    # Validate the pipeline before executing
+    errors = validate_dag(pipeline_request)
+    if errors:
+        raise HTTPException(status_code=400, detail={"errors": errors})
+    
+    # Get storage for the user
+    user_id = request.state.user_info.get('uid')
+    storage = get_storage_for_user(user_id)
+    
+    # Execute the pipeline in the background
+    background_tasks.add_task(
+        execute_pipeline,
+        pipeline_request,
+        storage,
+        ws_manager
+    )
+    
+    return {
+        "pipeline_id": pipeline_id,
+        "status": "started",
+        "project_name": name,
+        "nodes_count": len(nodes),
+        "edges_count": len(edges)
+    }
