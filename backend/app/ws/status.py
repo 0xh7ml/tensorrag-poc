@@ -61,5 +61,34 @@ class WSManager:
         })
         await self._broadcast(pipeline_id, payload)
 
+    async def send_pipeline_completion(
+        self,
+        pipeline_id: str,
+        status: str,
+        message: str = "",
+        execution_time: float | None = None,
+    ) -> None:
+        """Send pipeline completion notification to connected clients.
+        
+        Args:
+            pipeline_id: The pipeline identifier
+            status: 'completed' for success, 'failed' for failure
+            message: Optional completion message
+            execution_time: Total execution time in seconds
+        """
+        payload_data = {
+            "type": "pipeline_completion",
+            "pipeline_id": pipeline_id,
+            "status": status,
+            "message": message,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        
+        if execution_time is not None:
+            payload_data["execution_time"] = round(execution_time, 2)
+        
+        payload = json.dumps(payload_data)
+        await self._broadcast(pipeline_id, payload)
+
 
 ws_manager = WSManager()

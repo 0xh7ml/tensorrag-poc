@@ -354,11 +354,25 @@ async def execute_pipeline(
                 )
                 total = time.time() - pipeline_start
                 await log(f"$ pipeline failed ({total:.2f}s)")
+                
+                # Send pipeline failure notification
+                failure_message = f"Pipeline execution failed at node '{card_name}': {type(e).__name__}: {e}"
+                await ws_manager.send_pipeline_completion(
+                    pid, "failed", failure_message, total
+                )
+                
                 return state
 
     total = time.time() - pipeline_start
     state.status = "completed"
     await log(f"$ pipeline completed ({total:.2f}s)")
+    
+    # Send pipeline success notification
+    success_message = f"Pipeline executed successfully with {len(pipeline.nodes)} nodes"
+    await ws_manager.send_pipeline_completion(
+        pid, "completed", success_message, total
+    )
+    
     return state
 
 
