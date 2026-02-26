@@ -1,0 +1,17 @@
+@baseURL = http://localhost:8000
+@auth_token=<YUOUR_AUTH_TOKEN>
+
+@project_name = <YOUR_PROJECT_NAME>
+
+# This file included newly added endpoints
+
+
+### Activate/Register all cards in a pipeline
+POST {{baseURL}}/api/workspace/projects/{{project_name}}/activate
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+### Execute all cards in a pipeline
+POST {{baseURL}}/api/workspace/projects/{{project_name}}/execute
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
