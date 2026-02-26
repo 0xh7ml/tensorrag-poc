@@ -29,28 +29,32 @@ def _execute_local(card, config: dict, inputs: dict, storage) -> dict:
     return card.execute(config, inputs, storage)
 
 
+# def _get_custom_card_source(card_type: str) -> str | None:
+#     """Return source code for a custom project card, or None for built-in cards."""
+#     from app.controllers.workspace_manager import workspace_manager
+
+#     if card_type not in workspace_manager._custom_card_types:
+#         return None
+
+#     project = workspace_manager._registered_project
+#     if not project:
+#         return None
+
+#     # Find the source file for this card_type
+#     for entry in workspace_manager.list_card_files(project):
+#         if entry["type"] != "file":
+#             continue
+#         try:
+#             source = workspace_manager.get_card_source(project, entry["path"])
+#             if workspace_manager._extract_card_type(source) == card_type:
+#                 return source
+#         except Exception:
+#             continue
+#     return None
 def _get_custom_card_source(card_type: str) -> str | None:
     """Return source code for a custom project card, or None for built-in cards."""
-    from app.controllers.workspace_manager import workspace_manager
-
-    if card_type not in workspace_manager._custom_card_types:
-        return None
-
-    project = workspace_manager._registered_project
-    if not project:
-        return None
-
-    # Find the source file for this card_type
-    for entry in workspace_manager.list_card_files(project):
-        if entry["type"] != "file":
-            continue
-        try:
-            source = workspace_manager.get_card_source(project, entry["path"])
-            if workspace_manager._extract_card_type(source) == card_type:
-                return source
-        except Exception:
-            continue
-    return None
+    from cards.registry import SOURCE_CODE_REGISTRY
+    return SOURCE_CODE_REGISTRY.get(card_type)
 
 
 def _execute_modal(card, config: dict, inputs: dict, storage) -> dict:
