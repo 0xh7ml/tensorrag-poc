@@ -182,10 +182,12 @@ async def execute_project_pipeline(name: str, background_tasks: BackgroundTasks,
     # Convert the pipeline state to a PipelineRequest
     nodes = []
     for node in pipeline_state["nodes"]:
+        card_type = node["data"]["cardSchema"]["card_type"]
+        config = node.get("data", {}).get("config", {})
         nodes.append(NodeConfig(
             id=node["id"],
-            type=node["type"],
-            config=node.get("data", {}),  # Node config is typically stored in 'data' field
+            type=card_type,
+            config=config,
             position=node.get("position", {"x": 0, "y": 0})
         ))
     
@@ -194,8 +196,8 @@ async def execute_project_pipeline(name: str, background_tasks: BackgroundTasks,
         edges.append(EdgeConfig(
             source=edge["source"],
             target=edge["target"],
-            source_output=edge.get("sourceHandle", "default"),
-            target_input=edge.get("targetHandle", "default")
+            source_output=edge.get("data", {}).get("source_output") or edge.get("sourceHandle", "default"),
+            target_input=edge.get("data", {}).get("target_input") or edge.get("targetHandle", "default"),
         ))
     
     # Generate a unique pipeline ID
