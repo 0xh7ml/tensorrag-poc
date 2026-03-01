@@ -1,19 +1,4 @@
-# ---------- build stage ----------
-FROM python:3.12-slim AS builder
-
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
-
-WORKDIR /app
-
-# Install dependencies first (cached layer)
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
-
-# Copy application code and install the project itself
-COPY . .
-RUN uv sync --frozen --no-dev
-
-# ---------- runtime stage ----------
+# Use Python 3.12 slim as base image
 FROM python:3.12-slim
 
 # Non-writable matplotlib font cache dir workaround
@@ -21,9 +6,21 @@ ENV MPLCONFIGDIR=/tmp/matplotlib
 
 WORKDIR /app
 
-# Copy the virtual environment and application code from builder
-COPY --from=builder /app /app
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Install the application in development mode
+RUN pip install -e .
 
 EXPOSE 8000
 
-CMD ["/app/.venv/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
