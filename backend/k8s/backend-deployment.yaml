@@ -1,0 +1,126 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tensorrag-backend
+  labels:
+    app: tensorrag-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tensorrag-backend
+  template:
+    metadata:
+      labels:
+        app: tensorrag-backend
+    spec:
+      containers:
+        - name: tensorrag-backend
+          image: poridhi/tensorrag:v1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: STORAGE_DIR
+              value: ./storage
+            - name: MODAL_ENABLED
+              value: "true"
+            - name: S3_ENABLED
+              value: "true"
+            - name: S3_BUCKET
+              valueFrom:
+                  secretKeyRef:
+                    name: tensorrag-secret
+                    key: AWS_BUCKET_NAME
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tensorrag-secret
+                  key: AWS_ACCESS_KEY
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tensorrag-secret
+                  key: AWS_SECRET_KEY
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: tensorrag-secret
+                  key: AWS_REGION
+            - name: S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: tensorrag-secret
+                  key: AWS_ENDPOINT_URL
+            - name: IAM_VALIDATION_ENDPOINT
+              value: https://iam.internal.poridhi.io/validate
+            - name: MODAL_TOKEN_ID
+              valueFrom:
+                secretKeyRef:
+                  name: tensorrag-secret
+                  key: MODAL_TOKEN_ID
+            - name: MODAL_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: tensorrag-secret
+                  key: MODAL_TOKEN_SECRET
+            - name: FRONTEND_ORIGIN
+              valueFrom:
+                secretKeyRef:
+                  name: tensorrag-secret
+                  key: FRONTEND_ORIGIN
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tensorrag-backend-svc
+  namespace: ingress-staging
+  labels:
+    app: tensorrag-backend
+spec:
+  selector:
+    app: tensorrag-backend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000
+      name: http
+
+--- 
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: staging-tensorrag-backend-ingress
+  namespace: ingress-staging
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: tensorrag.api.internal.poridhi.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tensorrag-backend-svc
+                port:
+                  number: 80
