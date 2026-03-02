@@ -26,6 +26,10 @@ class IAMAuthMiddleware(BaseHTTPMiddleware):
         if request.url.path in self.skip_paths:
             return await call_next(request)
         
+        # Skip authentication for OPTIONS requests (CORS preflight)
+        if request.method == "OPTIONS":
+            return await call_next(request)
+        
         try:
             # Extract Authorization header
             auth_header = request.headers.get("authorization")
@@ -36,6 +40,10 @@ class IAMAuthMiddleware(BaseHTTPMiddleware):
                     content={
                         "success": False,
                         "error": "Missing Authorization header"
+                    },
+                    headers={
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Credentials": "true"
                     }
                 )
             
@@ -47,6 +55,10 @@ class IAMAuthMiddleware(BaseHTTPMiddleware):
                     content={
                         "success": False,
                         "error": "Invalid Authorization header format. Expected: Bearer <token>"
+                    },
+                    headers={
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Credentials": "true"
                     }
                 )
             
@@ -90,6 +102,10 @@ class IAMAuthMiddleware(BaseHTTPMiddleware):
                             content={
                                 "success": False,
                                 "error": "Invalid token format"
+                            },
+                            headers={
+                                "Access-Control-Allow-Origin": "*",
+                                "Access-Control-Allow-Credentials": "true"
                             }
                         )
                 else:
@@ -98,6 +114,10 @@ class IAMAuthMiddleware(BaseHTTPMiddleware):
                         content={
                             "success": False,
                             "error": "Invalid token"
+                        },
+                        headers={
+                            "Access-Control-Allow-Origin": "*",
+                            "Access-Control-Allow-Credentials": "true"
                         }
                     )
             else:
@@ -106,6 +126,10 @@ class IAMAuthMiddleware(BaseHTTPMiddleware):
                     content={
                         "success": False,
                         "error": "Unauthorized: Invalid or expired token"
+                    },
+                    headers={
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Credentials": "true"
                     }
                 )
                 
@@ -116,6 +140,10 @@ class IAMAuthMiddleware(BaseHTTPMiddleware):
                 content={
                     "success": False,
                     "error": "IAM service timeout"
+                },
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Credentials": "true"
                 }
             )
         except httpx.ConnectError:
@@ -125,6 +153,10 @@ class IAMAuthMiddleware(BaseHTTPMiddleware):
                 content={
                     "success": False,
                     "error": "IAM service unavailable"
+                },
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Credentials": "true"
                 }
             )
         except httpx.HTTPStatusError as http_error:
@@ -136,6 +168,10 @@ class IAMAuthMiddleware(BaseHTTPMiddleware):
                     content={
                         "success": False,
                         "error": "Unauthorized: Invalid or expired token"
+                    },
+                    headers={
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Credentials": "true"
                     }
                 )
             
@@ -150,6 +186,10 @@ class IAMAuthMiddleware(BaseHTTPMiddleware):
                 content={
                     "success": False,
                     "error": error_message
+                },
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Credentials": "true"
                 }
             )
         except Exception as error:
@@ -159,6 +199,10 @@ class IAMAuthMiddleware(BaseHTTPMiddleware):
                 content={
                     "success": False,
                     "error": "Internal server error during authentication"
+                },
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Credentials": "true"
                 }
             )
 

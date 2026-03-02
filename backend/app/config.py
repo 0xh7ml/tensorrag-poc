@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    FRONTEND_ORIGIN: str = "http://localhost:3000"
+    FRONTEND_ORIGIN: str = "https://api-stg-tensorrag.internal.poridhi.io"
     STORAGE_DIR: str = "./storage"
     MODAL_ENABLED: bool = True
 

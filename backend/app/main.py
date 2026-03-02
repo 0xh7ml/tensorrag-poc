@@ -19,13 +19,14 @@ from app.ws.status import ws_manager
 
 app = FastAPI(title="TensorRag", version="0.1.0")
 
-# Add CORS middleware first
+# Add CORS middleware FIRST - must be outermost middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_ORIGIN],
+    allow_origins=["*"],  # Allow all origins for now
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 # Add IAM authentication middleware
 app.add_middleware(

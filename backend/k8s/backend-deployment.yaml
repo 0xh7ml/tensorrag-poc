@@ -56,7 +56,7 @@ spec:
                   name: tensorrag-secret
                   key: AWS_ENDPOINT_URL
             - name: IAM_VALIDATION_ENDPOINT
-              value: https://iam.internal.poridhi.io/validate
+              value: https://iam.internal.poridhi.io/auth/validate-token
             - name: MODAL_TOKEN_ID
               valueFrom:
                 secretKeyRef:
