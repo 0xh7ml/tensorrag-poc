@@ -1,0 +1,250 @@
+{
+  "nodes": [
+    {
+      "id": "node_1",
+      "type": "custom",
+      "position": { "x": 0, "y": 0 },
+      "data": {
+        "cardSchema": {
+          "card_type": "llm_load_dataset",
+          "display_name": "Load Dataset",
+          "description": "Load dataset from HuggingFace or file",
+          "category": "data",
+          "execution_mode": "local",
+          "output_view_type": "table",
+          "config_schema": {
+            "source": { "type": "string", "label": "HuggingFace dataset name or file URL", "default": "tatsu-lab/alpaca" },
+            "split": { "type": "string", "label": "Split", "default": "train" },
+            "max_samples": { "type": "number", "label": "Max samples (0 = all)", "default": 1000 }
+          },
+          "input_schema": {},
+          "output_schema": { "dataset": "json" }
+        },
+        "config": {
+          "source": "tatsu-lab/alpaca",
+          "split": "train",
+          "max_samples": 1000
+        }
+      }
+    },
+    {
+      "id": "node_2",
+      "type": "custom",
+      "position": { "x": 300, "y": 0 },
+      "data": {
+        "cardSchema": {
+          "card_type": "llm_format_sft",
+          "display_name": "Format for SFT",
+          "description": "Format dataset for supervised fine-tuning",
+          "category": "data",
+          "execution_mode": "local",
+          "output_view_type": "table",
+          "config_schema": {
+            "template": { "type": "string", "label": "Prompt template", "default": "### Instruction:\\n{instruction}\\n\\n### Input:\\n{input}\\n\\n### Response:\\n{output}" },
+            "instruction_col": { "type": "string", "label": "Instruction column", "default": "instruction" },
+            "input_col": { "type": "string", "label": "Input column (optional context)", "default": "input" },
+            "output_col": { "type": "string", "label": "Output/response column", "default": "output" }
+          },
+          "input_schema": { "dataset": "json" },
+          "output_schema": { "sft_dataset": "json" }
+        },
+        "config": {
+          "template": "### Instruction:\\n{instruction}\\n\\n### Input:\\n{input}\\n\\n### Response:\\n{output}",
+          "instruction_col": "instruction",
+          "input_col": "input",
+          "output_col": "output"
+        }
+      }
+    },
+    {
+      "id": "node_3",
+      "type": "custom",
+      "position": { "x": 0, "y": 250 },
+      "data": {
+        "cardSchema": {
+          "card_type": "llm_load_model",
+          "display_name": "Load Base Model",
+          "description": "Load a pre-trained LLM from HuggingFace",
+          "category": "model",
+          "execution_mode": "local",
+          "output_view_type": "model_summary",
+          "config_schema": {
+            "model_name": { "type": "string", "label": "HuggingFace model name", "default": "TinyLlama/TinyLlama-1.1B-Chat-v1.0" },
+            "load_in_4bit": { "type": "boolean", "label": "Quantize to 4-bit (saves GPU memory)", "default": true },
+            "cache_dir": { "type": "string", "label": "Cache directory", "default": "/tmp/hf_cache" }
+          },
+          "input_schema": {},
+          "output_schema": { "model_config": "json" }
+        },
+        "config": {
+          "model_name": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+          "load_in_4bit": true,
+          "cache_dir": "/tmp/hf_cache"
+        }
+      }
+    },
+    {
+      "id": "node_4",
+      "type": "custom",
+      "position": { "x": 300, "y": 250 },
+      "data": {
+        "cardSchema": {
+          "card_type": "llm_apply_lora",
+          "display_name": "Apply LoRA",
+          "description": "Attach LoRA adapters to the model",
+          "category": "training",
+          "execution_mode": "local",
+          "output_view_type": "model_summary",
+          "config_schema": {
+            "r": { "type": "number", "label": "LoRA rank (r)", "default": 16 },
+            "alpha": { "type": "number", "label": "LoRA alpha", "default": 32 },
+            "dropout": { "type": "number", "label": "LoRA dropout", "default": 0.05 },
+            "target_modules": { "type": "string", "label": "Target modules (comma-separated)", "default": "q_proj,v_proj,k_proj,o_proj" }
+          },
+          "input_schema": { "model_config": "json" },
+          "output_schema": { "lora_config": "json" }
+        },
+        "config": {
+          "r": 16,
+          "alpha": 32,
+          "dropout": 0.05,
+          "target_modules": "q_proj,v_proj,k_proj,o_proj"
+        }
+      }
+    },
+    {
+      "id": "node_5",
+      "type": "custom",
+      "position": { "x": 600, "y": 125 },
+      "data": {
+        "cardSchema": {
+          "card_type": "llm_finetune",
+          "display_name": "Fine-Tune",
+          "description": "Supervised fine-tuning with SFTTrainer",
+          "category": "training",
+          "execution_mode": "local",
+          "output_view_type": "metrics",
+          "config_schema": {
+            "epochs": { "type": "number", "label": "Number of epochs", "default": 3 },
+            "batch_size": { "type": "number", "label": "Per-device batch size", "default": 4 },
+            "learning_rate": { "type": "number", "label": "Learning rate", "default": 0.0002 },
+            "max_seq_length": { "type": "number", "label": "Max sequence length", "default": 512 },
+            "output_dir": { "type": "string", "label": "Adapter output directory", "default": "/tmp/lora_adapters" }
+          },
+          "input_schema": { "lora_config": "json", "sft_dataset": "json" },
+          "output_schema": { "training_result": "json" }
+        },
+        "config": {
+          "epochs": 3,
+          "batch_size": 4,
+          "learning_rate": 0.0002,
+          "max_seq_length": 512,
+          "output_dir": "/tmp/lora_adapters"
+        }
+      }
+    },
+    {
+      "id": "node_6",
+      "type": "custom",
+      "position": { "x": 900, "y": 125 },
+      "data": {
+        "cardSchema": {
+          "card_type": "llm_merge_export",
+          "display_name": "Merge & Export",
+          "description": "Merge LoRA adapters into base model",
+          "category": "model",
+          "execution_mode": "local",
+          "output_view_type": "metrics",
+          "config_schema": {
+            "merged_output_dir": { "type": "string", "label": "Merged model output directory", "default": "/tmp/merged_model" }
+          },
+          "input_schema": { "training_result": "json" },
+          "output_schema": { "merged_model": "json" }
+        },
+        "config": {
+          "merged_output_dir": "/tmp/merged_model"
+        }
+      }
+    },
+    {
+      "id": "node_7",
+      "type": "custom",
+      "position": { "x": 1200, "y": 125 },
+      "data": {
+        "cardSchema": {
+          "card_type": "llm_vllm_inference",
+          "display_name": "vLLM Inference",
+          "description": "Fast inference with vLLM",
+          "category": "inference",
+          "execution_mode": "local",
+          "output_view_type": "table",
+          "config_schema": {
+            "prompts": { "type": "string", "label": "Prompts (one per line)", "default": "### Instruction:\\nExplain what machine learning is in one sentence.\\n\\n### Response:\\n" },
+            "max_tokens": { "type": "number", "label": "Max new tokens", "default": 256 },
+            "temperature": { "type": "number", "label": "Temperature", "default": 0.7 },
+            "top_p": { "type": "number", "label": "Top-p (nucleus sampling)", "default": 0.9 }
+          },
+          "input_schema": { "merged_model": "json" },
+          "output_schema": { "generations": "json" }
+        },
+        "config": {
+          "prompts": "### Instruction:\\nExplain what machine learning is in one sentence.\\n\\n### Response:\\n",
+          "max_tokens": 256,
+          "temperature": 0.7,
+          "top_p": 0.9
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_1_2",
+      "source": "node_1",
+      "target": "node_2",
+      "sourceHandle": "dataset",
+      "targetHandle": "dataset",
+      "data": { "source_output": "dataset", "target_input": "dataset" }
+    },
+    {
+      "id": "edge_2_5",
+      "source": "node_2",
+      "target": "node_5",
+      "sourceHandle": "sft_dataset",
+      "targetHandle": "sft_dataset",
+      "data": { "source_output": "sft_dataset", "target_input": "sft_dataset" }
+    },
+    {
+      "id": "edge_3_4",
+      "source": "node_3",
+      "target": "node_4",
+      "sourceHandle": "model_config",
+      "targetHandle": "model_config",
+      "data": { "source_output": "model_config", "target_input": "model_config" }
+    },
+    {
+      "id": "edge_4_5",
+      "source": "node_4",
+      "target": "node_5",
+      "sourceHandle": "lora_config",
+      "targetHandle": "lora_config",
+      "data": { "source_output": "lora_config", "target_input": "lora_config" }
+    },
+    {
+      "id": "edge_5_6",
+      "source": "node_5",
+      "target": "node_6",
+      "sourceHandle": "training_result",
+      "targetHandle": "training_result",
+      "data": { "source_output": "training_result", "target_input": "training_result" }
+    },
+    {
+      "id": "edge_6_7",
+      "source": "node_6",
+      "target": "node_7",
+      "sourceHandle": "merged_model",
+      "targetHandle": "merged_model",
+      "data": { "source_output": "merged_model", "target_input": "merged_model" }
+    }
+  ],
+  "nodeCounter": 7
+}

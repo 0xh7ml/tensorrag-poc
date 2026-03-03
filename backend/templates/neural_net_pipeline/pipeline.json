@@ -1,0 +1,274 @@
+{
+  "nodes": [
+    {
+      "id": "node_1",
+      "type": "custom",
+      "position": { "x": 0, "y": 100 },
+      "data": {
+        "cardSchema": {
+          "card_type": "data_load",
+          "display_name": "Data Load",
+          "description": "Load a CSV dataset",
+          "category": "data",
+          "execution_mode": "local",
+          "output_view_type": "table",
+          "config_schema": {
+            "source_url": { "type": "string", "label": "CSV URL or path", "default": "https://raw.githubusercontent.com/mwaskom/seaborn-data/master/iris.csv" }
+          },
+          "input_schema": {},
+          "output_schema": { "dataset": "dataframe" }
+        },
+        "config": {
+          "source_url": "https://raw.githubusercontent.com/mwaskom/seaborn-data/master/iris.csv"
+        }
+      }
+    },
+    {
+      "id": "node_2",
+      "type": "custom",
+      "position": { "x": 300, "y": 100 },
+      "data": {
+        "cardSchema": {
+          "card_type": "data_split",
+          "display_name": "Data Split",
+          "description": "Split dataset into train and test sets",
+          "category": "data",
+          "execution_mode": "local",
+          "output_view_type": "table",
+          "config_schema": {
+            "target_column": { "type": "string", "label": "Target column name", "default": "species" },
+            "test_ratio": { "type": "number", "label": "Test set ratio", "default": 0.2 }
+          },
+          "input_schema": { "dataset": "dataframe" },
+          "output_schema": { "train_data": "json", "test_data": "json" }
+        },
+        "config": {
+          "target_column": "species",
+          "test_ratio": 0.2
+        }
+      }
+    },
+    {
+      "id": "node_3",
+      "type": "custom",
+      "position": { "x": 600, "y": 0 },
+      "data": {
+        "cardSchema": {
+          "card_type": "build_model",
+          "display_name": "Build Model",
+          "description": "Create a neural network architecture",
+          "category": "model",
+          "execution_mode": "local",
+          "output_view_type": "model_summary",
+          "config_schema": {
+            "hidden_sizes": { "type": "string", "label": "Hidden layer sizes (comma-separated)", "default": "16,8" },
+            "learning_rate": { "type": "number", "label": "Learning rate", "default": 0.01 }
+          },
+          "input_schema": { "train_data": "json" },
+          "output_schema": { "training_state": "json" }
+        },
+        "config": {
+          "hidden_sizes": "16,8",
+          "learning_rate": 0.01
+        }
+      }
+    },
+    {
+      "id": "node_4",
+      "type": "custom",
+      "position": { "x": 900, "y": 0 },
+      "data": {
+        "cardSchema": {
+          "card_type": "forward_pass",
+          "display_name": "Forward Pass",
+          "description": "Run data through the network",
+          "category": "training",
+          "execution_mode": "local",
+          "output_view_type": "metrics",
+          "config_schema": {},
+          "input_schema": { "training_state": "json" },
+          "output_schema": { "training_state": "json" }
+        },
+        "config": {}
+      }
+    },
+    {
+      "id": "node_5",
+      "type": "custom",
+      "position": { "x": 1200, "y": 0 },
+      "data": {
+        "cardSchema": {
+          "card_type": "compute_loss",
+          "display_name": "Compute Loss",
+          "description": "Calculate cross-entropy loss",
+          "category": "training",
+          "execution_mode": "local",
+          "output_view_type": "metrics",
+          "config_schema": {},
+          "input_schema": { "training_state": "json" },
+          "output_schema": { "training_state": "json" }
+        },
+        "config": {}
+      }
+    },
+    {
+      "id": "node_6",
+      "type": "custom",
+      "position": { "x": 1500, "y": 0 },
+      "data": {
+        "cardSchema": {
+          "card_type": "backward_pass",
+          "display_name": "Backward Pass",
+          "description": "Compute gradients via backpropagation",
+          "category": "training",
+          "execution_mode": "local",
+          "output_view_type": "metrics",
+          "config_schema": {},
+          "input_schema": { "training_state": "json" },
+          "output_schema": { "training_state": "json" }
+        },
+        "config": {}
+      }
+    },
+    {
+      "id": "node_7",
+      "type": "custom",
+      "position": { "x": 1800, "y": 0 },
+      "data": {
+        "cardSchema": {
+          "card_type": "optimizer_step",
+          "display_name": "Optimizer Step",
+          "description": "Update weights using gradients (multi-epoch)",
+          "category": "training",
+          "execution_mode": "local",
+          "output_view_type": "metrics",
+          "config_schema": {
+            "epochs": { "type": "number", "label": "Number of epochs", "default": 50 }
+          },
+          "input_schema": { "training_state": "json" },
+          "output_schema": { "trained_model": "json" }
+        },
+        "config": {
+          "epochs": 50
+        }
+      }
+    },
+    {
+      "id": "node_8",
+      "type": "custom",
+      "position": { "x": 2100, "y": 0 },
+      "data": {
+        "cardSchema": {
+          "card_type": "evaluate",
+          "display_name": "Evaluate",
+          "description": "Test model on held-out data",
+          "category": "evaluation",
+          "execution_mode": "local",
+          "output_view_type": "metrics",
+          "config_schema": {},
+          "input_schema": { "trained_model": "json", "test_data": "json" },
+          "output_schema": { "metrics": "json" }
+        },
+        "config": {}
+      }
+    },
+    {
+      "id": "node_9",
+      "type": "custom",
+      "position": { "x": 2100, "y": 200 },
+      "data": {
+        "cardSchema": {
+          "card_type": "inference",
+          "display_name": "Inference",
+          "description": "Make predictions with trained model",
+          "category": "inference",
+          "execution_mode": "local",
+          "output_view_type": "table",
+          "config_schema": {
+            "input_values": { "type": "string", "label": "Input values (comma-separated)", "default": "5.1,3.5,1.4,0.2" }
+          },
+          "input_schema": { "trained_model": "json" },
+          "output_schema": { "predictions": "json" }
+        },
+        "config": {
+          "input_values": "5.1,3.5,1.4,0.2"
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_1_2",
+      "source": "node_1",
+      "target": "node_2",
+      "sourceHandle": "dataset",
+      "targetHandle": "dataset",
+      "data": { "source_output": "dataset", "target_input": "dataset" }
+    },
+    {
+      "id": "edge_2_3",
+      "source": "node_2",
+      "target": "node_3",
+      "sourceHandle": "train_data",
+      "targetHandle": "train_data",
+      "data": { "source_output": "train_data", "target_input": "train_data" }
+    },
+    {
+      "id": "edge_3_4",
+      "source": "node_3",
+      "target": "node_4",
+      "sourceHandle": "training_state",
+      "targetHandle": "training_state",
+      "data": { "source_output": "training_state", "target_input": "training_state" }
+    },
+    {
+      "id": "edge_4_5",
+      "source": "node_4",
+      "target": "node_5",
+      "sourceHandle": "training_state",
+      "targetHandle": "training_state",
+      "data": { "source_output": "training_state", "target_input": "training_state" }
+    },
+    {
+      "id": "edge_5_6",
+      "source": "node_5",
+      "target": "node_6",
+      "sourceHandle": "training_state",
+      "targetHandle": "training_state",
+      "data": { "source_output": "training_state", "target_input": "training_state" }
+    },
+    {
+      "id": "edge_6_7",
+      "source": "node_6",
+      "target": "node_7",
+      "sourceHandle": "training_state",
+      "targetHandle": "training_state",
+      "data": { "source_output": "training_state", "target_input": "training_state" }
+    },
+    {
+      "id": "edge_7_8",
+      "source": "node_7",
+      "target": "node_8",
+      "sourceHandle": "trained_model",
+      "targetHandle": "trained_model",
+      "data": { "source_output": "trained_model", "target_input": "trained_model" }
+    },
+    {
+      "id": "edge_2_8",
+      "source": "node_2",
+      "target": "node_8",
+      "sourceHandle": "test_data",
+      "targetHandle": "test_data",
+      "data": { "source_output": "test_data", "target_input": "test_data" }
+    },
+    {
+      "id": "edge_7_9",
+      "source": "node_7",
+      "target": "node_9",
+      "sourceHandle": "trained_model",
+      "targetHandle": "trained_model",
+      "data": { "source_output": "trained_model", "target_input": "trained_model" }
+    }
+  ],
+  "nodeCounter": 9
+}

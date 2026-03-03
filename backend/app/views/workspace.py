@@ -12,6 +12,7 @@ from app.controllers.executor import execute_pipeline
 from app.controllers.storage_factory import get_storage_for_user
 from app.ws.status import ws_manager
 from cards.registry import list_cards
+from templates.seeder import seed_all_templates
 
 router = APIRouter(tags=["workspace"])
 
@@ -62,7 +63,17 @@ class PipelineStateRequest(BaseModel):
 @router.get("/projects")
 def list_projects(request: Request):
     workspace_mgr = get_workspace_manager(request)
-    return workspace_mgr.list_projects()
+    projects = workspace_mgr.list_projects()
+
+    # Auto-seed default templates on first access (empty workspace)
+    if not projects:
+        try:
+            seed_all_templates(workspace_mgr, skip_existing=False)
+            projects = workspace_mgr.list_projects()
+        except Exception:
+            pass  # Don't block project listing if seeding fails
+
+    return projects
 
 
 @router.post("/projects")
@@ -163,6 +174,19 @@ def activate_project(name: str, request: Request):
     registered = workspace_mgr.load_and_register_project_cards(name)
     schemas = list_cards()
     return {"registered": registered, "cards": schemas}
+
+
+# -- Seed default project templates --
+
+@router.post("/seed-defaults")
+def seed_default_projects(request: Request):
+    """Upload default project templates into the user's workspace.
+
+    Skips any template whose project already exists.
+    """
+    workspace_mgr = get_workspace_manager(request)
+    results = seed_all_templates(workspace_mgr, skip_existing=True)
+    return {"success": True, "templates": results}
 
 
 # -- Execute all pipelines in a project --
