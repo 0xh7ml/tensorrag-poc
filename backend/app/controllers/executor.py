@@ -5,10 +5,12 @@ import time
 import traceback
 from collections import defaultdict
 from dataclasses import dataclass, field
+from typing import Optional
 
 from app.config import settings
 from app.models.pipeline import PipelineRequest
 from app.controllers.dag import topological_sort, validate_dag
+from app.controllers.compute import deduct_compute_credit, is_compute_credits_enabled, log_credit_deduction, ComputeCreditsError
 from app.ws.status import WSManager
 from cards.registry import get_card
 
@@ -78,6 +80,7 @@ async def execute_pipeline(
     pipeline: PipelineRequest,
     storage,
     ws_manager: WSManager,
+    user_email: Optional[str] = None,
 ) -> PipelineRunState:
     """Execute a pipeline DAG. Routes to local or Modal based on config."""
 
@@ -141,6 +144,32 @@ async def execute_pipeline(
             node_start = time.time()
 
             try:
+                # Deduct compute credit before card execution (if enabled and user_email provided)
+                should_deduct_credits = is_compute_credits_enabled() and user_email
+                if should_deduct_credits:
+                    try:
+                        credit_deducted = await deduct_compute_credit(user_email)
+                        if credit_deducted:
+                            await log_credit_deduction(user_email, card_name, True)
+                            await log(f"  [{card_name}] compute credit deducted for {user_email}")
+                        else:
+                            await log_credit_deduction(user_email, card_name, False, "Credit deduction returned False")
+                            await log(f"  [{card_name}] WARNING: compute credit deduction failed")
+                    except ComputeCreditsError as credit_error:
+                        # Credit deduction failed - this should stop the pipeline execution
+                        await log_credit_deduction(user_email, card_name, False, str(credit_error))
+                        error_msg = f"Insufficient compute credits: {credit_error}"
+                        await log(f"  [{card_name}] ERROR: {error_msg}")
+                        raise ValueError(error_msg)
+                    except Exception as e:
+                        # Unexpected error during credit deduction
+                        await log_credit_deduction(user_email, card_name, False, f"Unexpected error: {e}")
+                        error_msg = f"Compute credit system error: {e}"
+                        await log(f"  [{card_name}] ERROR: {error_msg}")
+                        # In case of system errors, we could choose to continue execution
+                        # or halt it. For now, let's halt to prevent unauthorized usage
+                        raise ValueError(error_msg)
+                
                 # Gather inputs from predecessor outputs
                 inputs: dict[str, str] = {}
                 card_input_schema = card.input_schema

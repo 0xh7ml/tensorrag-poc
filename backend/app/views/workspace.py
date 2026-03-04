@@ -240,6 +240,7 @@ async def execute_project_pipeline(name: str, background_tasks: BackgroundTasks,
     
     # Get storage for the user
     user_id = request.state.user_info.get('uid')
+    user_email = request.state.user_info.get('email')
     storage = get_storage_for_user(user_id)
     
     # Execute the pipeline in the background
@@ -247,7 +248,8 @@ async def execute_project_pipeline(name: str, background_tasks: BackgroundTasks,
         execute_pipeline,
         pipeline_request,
         storage,
-        ws_manager
+        ws_manager,
+        user_email
     )
     
     return {

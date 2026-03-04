@@ -5,7 +5,7 @@ import tempfile
 import pytest
 
 from app.models.pipeline import EdgeConfig, NodeConfig, PipelineRequest
-from app.services.executor import execute_pipeline
+from app.controllers.executor import execute_pipeline
 from app.services.storage import StorageService
 from app.ws.status import WSManager
 
@@ -85,7 +85,7 @@ def test_full_pipeline(storage, ws):
         ],
     )
 
-    state = _run(execute_pipeline(pipeline, storage, ws))
+    state = _run(execute_pipeline(pipeline, storage, ws, None))
 
     assert state.status == "completed"
     assert all(s == "completed" for s in state.node_statuses.values())
@@ -109,7 +109,7 @@ def test_node_statuses_tracked(storage, ws):
         edges=[],
     )
 
-    state = _run(execute_pipeline(pipeline, storage, ws))
+    state = _run(execute_pipeline(pipeline, storage, ws, None))
     assert state.status == "completed"
     assert state.node_statuses["load"] == "completed"
 
@@ -128,7 +128,7 @@ def test_failed_card_aborts_pipeline(storage, ws):
         edges=[],
     )
 
-    state = _run(execute_pipeline(pipeline, storage, ws))
+    state = _run(execute_pipeline(pipeline, storage, ws, None))
     assert state.status == "failed"
     assert state.node_statuses["define"] == "failed"
     assert "define" in state.errors

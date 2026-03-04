@@ -72,6 +72,15 @@ spec:
                 secretKeyRef:
                   name: tensorrag-secret
                   key: FRONTEND_ORIGIN
+            - name: CF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: tensorrag-secret
+                  key: CF_TOKEN
+            - name: DISABLE_COMPUTE_CREDITS
+              value: "false"
+            - name: CF_ADMINER_API_URL
+              value: "https://tensorcode-cf-worker.poridhiaccess.workers.dev/api/compute/"
           readinessProbe:
             httpGet:
               path: /api/health

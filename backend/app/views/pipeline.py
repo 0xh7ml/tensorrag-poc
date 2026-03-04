@@ -25,13 +25,16 @@ async def execute(pipeline: PipelineRequest, background_tasks: BackgroundTasks, 
 
     storage = get_authenticated_storage(request)
     user_id = request.state.user_info.get('uid')
+    user_email = request.state.user_info.get('email')
     
     # Use user_id for background task since request context won't be available
+    # Pass user_email for compute credit deduction
     background_tasks.add_task(
         execute_pipeline, 
         pipeline, 
         get_storage_for_user(user_id), 
-        ws_manager
+        ws_manager,
+        user_email
     )
     return {"pipeline_id": pipeline.pipeline_id, "status": "started"}
 

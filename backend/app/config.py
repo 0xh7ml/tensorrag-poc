@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     
     # IAM Authentication
     IAM_VALIDATION_ENDPOINT: str = "https://iam.api.poridhi.io/auth/validate-token"
+    
+    # Compute Credits Configuration
+    CF_TOKEN: str = ""  # Cloudflare token for compute credits API
+    DISABLE_COMPUTE_CREDITS: bool = False  # Set to True to disable credit deduction (for development)
+    CF_ADMINER_API_URL: str = "https://tensorcode-cf-worker.poridhiaccess.workers.dev/api/compute/"
 
     model_config = {"env_file": ".env"}
 
