@@ -80,7 +80,10 @@ spec:
             - name: DISABLE_COMPUTE_CREDITS
               value: "false"
             - name: CF_ADMINER_API_URL
-              value: "https://tensorcode-cf-worker.poridhiaccess.workers.dev/api/compute/"
+              valueFrom:
+                secretKeyRef:
+                  name: tensorrag-secret
+                  key: CF_ADMINER_API_URL
           readinessProbe:
             httpGet:
               path: /api/health
@@ -123,7 +126,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: tensorrag.api.internal.poridhi.io
+    - host: api-stg-tensorrag.internal.poridhi.io
       http:
         paths:
           - path: /
